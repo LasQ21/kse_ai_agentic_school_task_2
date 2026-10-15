@@ -1,0 +1,13 @@
+# секрети
+.env
+*.session
+*.session-journal
+# оточення
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+# дані (відтворюються скриптами; сирі знімки alerts.in.ua зберігати окремо, бо джерело їх не повертає)
+data/
+# артефакти моделей
+models/
