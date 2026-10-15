@@ -11,3 +11,6 @@ __pycache__/
 data/
 # артефакти моделей
 models/
+
+# macOS
+.DS_Store
