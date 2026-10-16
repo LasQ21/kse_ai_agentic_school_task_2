@@ -48,3 +48,22 @@ def test_history_gives_exact_end(tmp_path):
     exact = dict(alert(1, "2026-10-15T20:00:00Z"), finished_at="2026-10-15T20:12:00Z")
     s.record_history("alerts_in_ua", [exact], "2026-10-15T20:40:00+00:00")
     assert s.raw_events().finished_at.iloc[0] == pd.Timestamp("2026-10-15T20:12:00Z")
+
+
+def test_stale_data_is_reported_not_hidden(tmp_path):
+    """Полер зупинився: прогноз станом на останнє оновлення, stale=True, predict() відмовляє."""
+    import pytest
+    from src.service import Forecaster, StaleDataError, SERVICE_MODEL
+    if not SERVICE_MODEL.exists():
+        pytest.skip("немає models/service_model.joblib")
+    s = LiveStore(tmp_path / "a.sqlite")
+    s.record_active("alerts_in_ua", [alert(1, "2026-10-15T20:00:00Z")], "2026-10-15T20:05:00+00:00")
+    fc = Forecaster(s.raw_events, last_update_fn=s.last_ok_poll)
+    now = pd.Timestamp("2026-10-15T23:05:00Z")
+    f = fc.forecast(UNIT, now)
+    assert f.stale and f.as_of == pd.Timestamp("2026-10-15T20:05:00+00:00") and f.data_age_s == 3 * 3600
+    with pytest.raises(StaleDataError):
+        fc.predict(UNIT, now)
+    assert fc.predict(UNIT, now, allow_stale=True) == f.probabilities
+    fresh = fc.forecast(UNIT, pd.Timestamp("2026-10-15T20:07:00Z"))
+    assert not fresh.stale and fresh.as_of == pd.Timestamp("2026-10-15T20:07:00Z") and fresh.active_now

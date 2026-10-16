@@ -15,23 +15,60 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 cp .env.example .env   # вписати ALERTS_IN_UA_TOKEN
 ```
 
-## Живі дані
+## Живі дані: воркер
 
-Джерело — API alerts.in.ua (`ALERT_SOURCE=alerts_in_ua`). Дані пишуться в `data/live/alerts.sqlite`.
+Окремий процес: опитує alerts.in.ua раз на хвилину й раз на добу робить знімок 30-денної історії
+(точні кінці тривог). Дані пишуться в `data/live/alerts.sqlite`, стан — у
+`data/live/worker_status.json`.
 
 ```bash
-.venv/bin/python scripts/archive_alerts.py           # знімок історії за 30 діб (~14 хв, ліміт API)
-.venv/bin/python scripts/live_poll.py --import-archive
-.venv/bin/python scripts/live_poll.py --interval 90  # опитування активних тривог
-.venv/bin/python scripts/live_poll.py --reconcile    # точні кінці тривог з історії
+.venv/bin/python scripts/live_worker.py             # працює до SIGTERM / Ctrl+C
+.venv/bin/python scripts/live_worker.py --health    # exit 0, якщо останнє опитування свіже (<5 хв)
 ```
 
-- Тривога, що зникла з відповіді API, закривається моментом опитування (наближено).
-  `--reconcile` або свіжий знімок історії замінюють цей момент точним кінцем.
-- Історія в API доступна лише за 30 діб. `archive_alerts.py` треба запускати регулярно, інакше в
-  архіві з'явиться діра.
-- Офіційне API (api.ukrainealarm.com) передбачене як `ALERT_SOURCE=ukrainealarm`, але ключа немає,
+Параметри задаються в `.env` / змінних середовища:
+- `POLL_INTERVAL_S` (за замовчуванням 60);
+- `ARCHIVE_EVERY_H` (24);
+- `HEALTH_MAX_AGE_S` (300).
+
+Файли для контейнера є, але їх не перевіряли — див. розділ «Docker (не перевірено)» нижче.
+
+Ручні інструменти:
+- `scripts/live_poll.py --once | --import-archive | --reconcile`;
+- `scripts/archive_alerts.py`;
+- `scripts/check_live_coverage.py` — показує діри в даних.
+
+Кілька важливих поведінок:
+- **Наближені кінці.** Тривога, що зникла з відповіді API, закривається моментом опитування
+  (наближено); знімок історії замінює цей момент точним кінцем.
+- **Обмеження історії.** Історія в API доступна лише за 30 діб: якщо воркер не працює довше,
+  в архіві буде діра.
+- **Офіційне API.** api.ukrainealarm.com передбачене як `ALERT_SOURCE=ukrainealarm`, але ключа немає,
   тому воно не реалізоване.
+
+**Якщо воркер зупинений, сервіс не вдає, що дані свіжі.** Коли останнє опитування старше 10 хв:
+- прогноз рахується **станом на останнє оновлення** (`as_of`) з `stale=True` і віком даних;
+- `predict()` кидає `StaleDataError`, якщо явно не передати `allow_stale=True`;
+- `/health` повертає `degraded`.
+
+## Docker (не перевірено)
+
+`Dockerfile`, `docker-compose.yml` і `.dockerignore` написані під воркер:
+- сервіс `worker`;
+- том `./data`;
+- секрети через `env_file: .env`, в образ вони не потрапляють;
+- healthcheck через `--health`.
+
+**Їх не збирали й не запускали: на машині розробки немає Docker.** Тому немає підтвердження, що образ
+збирається, що контейнер працює і що healthcheck спрацьовує. Перед використанням це треба перевірити:
+
+```bash
+docker compose build
+docker compose up worker
+```
+
+Перевірено лише запуск воркера напряму через Python: опитування, файл стану, `--health`, зупинка
+на SIGTERM.
 
 ## predict()
 
@@ -43,12 +80,34 @@ now = pd.Timestamp.now(tz="UTC")
 
 predict("Харківська область|Харківський район")      # -> {1: p, 3: p, 6: p} на зараз
 fc = live_forecaster()
-fc.forecast("м. Київ", now)    # + чи тривога активна, яка модель, вік даних, stale
+fc.forecast("м. Київ", now)    # + as_of, чи тривога активна, яка модель, вік даних, stale
 fc.list_regions()              # 105 одиниць: "Область|Район" або "Область|*"
 ```
 
 Регіон задається як `Область|Район`. Для м. Київ, Запорізької й Тернопільської областей можна
 вказати просто назву області: їхні райони в даних ідентичні, тож це одна одиниця.
+
+## API
+
+```bash
+.venv/bin/uvicorn src.api:app --port 8000
+```
+
+| Ендпоінт | Що повертає |
+|---|---|
+| `GET /health` | `ok` / `degraded`, вік даних, стан воркера, версія моделі |
+| `GET /regions` | 105 одиниць із моделлю (`gbm` / `climate`) + виключені області з причиною |
+| `GET /forecast` | усі одиниці |
+| `GET /forecast/{region}` | одна одиниця; регіон URL-кодований: `Харківська%20область%7CХарківський%20район` |
+| `GET /quality` | метрики test і окремо зовнішньої перевірки (захід — клімат, решта — GBM) |
+
+Відповідь прогнозу містить:
+- `probabilities` для H = 1 / 3 / 6;
+- `as_of`, `requested_for`, `data_last_update`, `data_age_s`, `stale`, `warning`;
+- `active_now`, `model`;
+- застереження.
+
+Виключені й невідомі регіони дають 404 з поясненням.
 
 ## Яка модель для яких областей
 
@@ -77,17 +136,24 @@ fc.list_regions()              # 105 одиниць: "Область|Район"
 - **Рішення щодо заходу.** Його ухвалено після двох переглядів test; зовнішня перевірка його не
   підтверджує, бо там інше визначення тривоги.
 
-## Відтворення моделі
+## Відтворення: одна команда
 
 ```bash
-.venv/bin/python -c "from src.data import download_vadimkin, build_processed; download_vadimkin(); build_processed()"
-.venv/bin/python -c "from src.split import build_and_save; build_and_save()"
-.venv/bin/python -c "from src.features import build_feature_table; build_feature_table()"
-.venv/bin/python scripts/train.py && .venv/bin/python scripts/export_service_model.py
-.venv/bin/python -m pytest -q
+.venv/bin/python scripts/run_pipeline.py            # з наявних data/raw (якщо порожньо — завантажить)
+.venv/bin/python scripts/run_pipeline.py --refresh  # спершу свіжі сирі дані (~16 хв через ліміт API)
 ```
 
-Обмеження відтворення:
-- Набір `alerts.in.ua` залежить від того, які знімки лежать у `data/raw/alerts_in_ua`.
-- Test оцінено двічі й заморожено: `scripts/evaluate_final.py` без `--allow-test` його не рахує.
-- Скрипт «з нуля однією командою» (`run_pipeline.py`) ще не зроблено.
+Порядок кроків: сирі дані → очищення → мітки й розбиття → ознаки → навчання й калібрування на
+validation → backtest → важливість ознак → експорт моделі сервісу → зовнішня перевірка → pytest →
+`reports/pipeline_run.md`.
+
+Розбиття й правило «захід — клімат, решта — GBM» зафіксовані в коді.
+
+**Test пайплайн не оцінює:** test уже оцінено двічі й заморожено. Фінальний крок — лише вручну:
+
+```bash
+.venv/bin/python scripts/evaluate_final.py --part test --allow-test
+```
+
+Набір alerts.in.ua (зовнішня перевірка) залежить від знімків у `data/raw/alerts_in_ua`, тож після
+`--refresh` він довший. Train, validation і test від цього не змінюються.
