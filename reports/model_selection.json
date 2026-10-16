@@ -1,7 +1,7 @@
 {
  "meta": {
-  "trained_at": "2026-10-16T10:41:55.242305+00:00",
-  "code_version": "da49bdf",
+  "trained_at": "2026-10-16T11:03:36.637881+00:00",
+  "code_version": "a3bd09a",
   "train_range": [
    "2025-11-17 00:00:00+00:00",
    "2026-06-13 23:00:00+00:00"
@@ -93,7 +93,7 @@
       "val_brier": 0.08458080114677644,
       "val_brier_western": 0.010922807808746889,
       "val_mean_pred_western": 0.009512553974516419,
-      "fit_s": 6.2
+      "fit_s": 6.1
      },
      {
       "learning_rate": 0.05,
@@ -103,7 +103,7 @@
       "val_brier": 0.08470050278384447,
       "val_brier_western": 0.011809601483094944,
       "val_mean_pred_western": 0.009710676561102884,
-      "fit_s": 4.8
+      "fit_s": 5.4
      },
      {
       "learning_rate": 0.1,
@@ -113,7 +113,7 @@
       "val_brier": 0.08472886712831534,
       "val_brier_western": 0.010883162978700442,
       "val_mean_pred_western": 0.008872218620765187,
-      "fit_s": 3.1
+      "fit_s": 4.8
      },
      {
       "learning_rate": 0.05,
@@ -135,7 +135,7 @@
       "val_brier": 0.08369593484209802,
       "val_brier_western": 0.010527290541993166,
       "val_mean_pred_western": 0.01489839205505177,
-      "fit_s": 2.8
+      "fit_s": 3.0
      },
      {
       "learning_rate": 0.05,
@@ -146,7 +146,7 @@
       "val_brier": 0.08494186847071096,
       "val_brier_western": 0.01050171658021219,
       "val_mean_pred_western": 0.011822259278177918,
-      "fit_s": 3.2
+      "fit_s": 3.7
      },
      {
       "learning_rate": 0.05,
@@ -158,7 +158,7 @@
       "val_brier": 0.08464028042061633,
       "val_brier_western": 0.01043388296964409,
       "val_mean_pred_western": 0.01704272652902174,
-      "fit_s": 1.4
+      "fit_s": 1.6
      },
      {
       "learning_rate": 0.03,
@@ -170,7 +170,7 @@
       "val_brier": 0.08464652433270195,
       "val_brier_western": 0.010499670815706208,
       "val_mean_pred_western": 0.016541015927919272,
-      "fit_s": 2.8
+      "fit_s": 3.1
      },
      {
       "learning_rate": 0.03,
@@ -181,7 +181,7 @@
       "val_brier": 0.08351282743443415,
       "val_brier_western": 0.01017555491354543,
       "val_mean_pred_western": 0.016299417098065278,
-      "fit_s": 2.2
+      "fit_s": 2.7
      },
      {
       "learning_rate": 0.03,
@@ -192,7 +192,7 @@
       "val_brier": 0.0839726339915328,
       "val_brier_western": 0.010499370696829505,
       "val_mean_pred_western": 0.01335931630983253,
-      "fit_s": 4.3
+      "fit_s": 5.1
      }
     ],
     "chosen": {
@@ -262,7 +262,7 @@
       "val_brier": 0.14325535212797524,
       "val_brier_western": 0.03432003353821653,
       "val_mean_pred_western": 0.04598241733301201,
-      "fit_s": 3.4
+      "fit_s": 4.2
      },
      {
       "learning_rate": 0.05,
@@ -272,7 +272,7 @@
       "val_brier": 0.14420654951811743,
       "val_brier_western": 0.03474409230950634,
       "val_mean_pred_western": 0.04020980600709071,
-      "fit_s": 6.4
+      "fit_s": 7.4
      },
      {
       "learning_rate": 0.05,
@@ -282,7 +282,7 @@
       "val_brier": 0.14378295845446193,
       "val_brier_western": 0.03444038237823739,
       "val_mean_pred_western": 0.04071854376988465,
-      "fit_s": 5.0
+      "fit_s": 6.5
      },
      {
       "learning_rate": 0.1,
@@ -292,7 +292,7 @@
       "val_brier": 0.14536092540339263,
       "val_brier_western": 0.03523665213169194,
       "val_mean_pred_western": 0.04066702017268652,
-      "fit_s": 3.3
+      "fit_s": 4.6
      },
      {
       "learning_rate": 0.05,
@@ -303,7 +303,7 @@
       "val_brier": 0.14157657247572578,
       "val_brier_western": 0.030505483602625616,
       "val_mean_pred_western": 0.05087122027995611,
-      "fit_s": 1.6
+      "fit_s": 2.1
      },
      {
       "learning_rate": 0.03,
@@ -314,7 +314,7 @@
       "val_brier": 0.1417454902565654,
       "val_brier_western": 0.03049552979661188,
       "val_mean_pred_western": 0.05004375549819093,
-      "fit_s": 2.9
+      "fit_s": 3.8
      },
      {
       "learning_rate": 0.05,
@@ -325,7 +325,7 @@
       "val_brier": 0.14460487831221067,
       "val_brier_western": 0.03381911842374376,
       "val_mean_pred_western": 0.04790803646469149,
-      "fit_s": 3.4
+      "fit_s": 4.3
      },
      {
       "learning_rate": 0.05,
@@ -337,7 +337,7 @@
       "val_brier": 0.14272444396342296,
       "val_brier_western": 0.030860250280856386,
       "val_mean_pred_western": 0.056601194516690045,
-      "fit_s": 1.5
+      "fit_s": 2.0
      },
      {
       "learning_rate": 0.03,
@@ -349,7 +349,7 @@
       "val_brier": 0.14318954818168267,
       "val_brier_western": 0.031111872506143123,
       "val_mean_pred_western": 0.055736008778278834,
-      "fit_s": 2.8
+      "fit_s": 3.7
      },
      {
       "learning_rate": 0.03,
@@ -360,7 +360,7 @@
       "val_brier": 0.14086681123996275,
       "val_brier_western": 0.028372471427276634,
       "val_mean_pred_western": 0.04759420817631771,
-      "fit_s": 2.4
+      "fit_s": 3.0
      },
      {
       "learning_rate": 0.03,
@@ -371,7 +371,7 @@
       "val_brier": 0.14181046990503124,
       "val_brier_western": 0.030458192552927737,
       "val_mean_pred_western": 0.04465405561327105,
-      "fit_s": 4.5
+      "fit_s": 5.8
      }
     ],
     "chosen": {
@@ -441,7 +441,7 @@
       "val_brier": 0.15037253710956974,
       "val_brier_western": 0.07093698896880472,
       "val_mean_pred_western": 0.10368687582613338,
-      "fit_s": 3.5
+      "fit_s": 3.9
      },
      {
       "learning_rate": 0.05,
@@ -451,7 +451,7 @@
       "val_brier": 0.15256032269511902,
       "val_brier_western": 0.07430387398447413,
       "val_mean_pred_western": 0.09945078842290488,
-      "fit_s": 6.3
+      "fit_s": 8.2
      },
      {
       "learning_rate": 0.05,
@@ -461,7 +461,7 @@
       "val_brier": 0.15199590162585533,
       "val_brier_western": 0.07487706641279195,
       "val_mean_pred_western": 0.09998736879354049,
-      "fit_s": 5.7
+      "fit_s": 6.5
      },
      {
       "learning_rate": 0.1,
@@ -471,7 +471,7 @@
       "val_brier": 0.15282489454779632,
       "val_brier_western": 0.07484112780543473,
       "val_mean_pred_western": 0.09665030988351367,
-      "fit_s": 3.4
+      "fit_s": 4.8
      },
      {
       "learning_rate": 0.05,
@@ -482,7 +482,7 @@
       "val_brier": 0.14541703793632377,
       "val_brier_western": 0.0605187515058655,
       "val_mean_pred_western": 0.11060196926264501,
-      "fit_s": 1.6
+      "fit_s": 2.2
      },
      {
       "learning_rate": 0.03,
@@ -493,7 +493,7 @@
       "val_brier": 0.14501329313242364,
       "val_brier_western": 0.05858643436389044,
       "val_mean_pred_western": 0.10669072183122914,
-      "fit_s": 3.4
+      "fit_s": 3.9
      },
      {
       "learning_rate": 0.05,
@@ -504,7 +504,7 @@
       "val_brier": 0.15284125335948878,
       "val_brier_western": 0.07594162411402597,
       "val_mean_pred_western": 0.11780326494750029,
-      "fit_s": 3.6
+      "fit_s": 4.3
      },
      {
       "learning_rate": 0.05,
@@ -516,7 +516,7 @@
       "val_brier": 0.14750213619232524,
       "val_brier_western": 0.0634194581722295,
       "val_mean_pred_western": 0.12359005926776613,
-      "fit_s": 2.0
+      "fit_s": 2.1
      },
      {
       "learning_rate": 0.03,
@@ -528,7 +528,7 @@
       "val_brier": 0.1464315870971584,
       "val_brier_western": 0.0588795967174661,
       "val_mean_pred_western": 0.11118546615675996,
-      "fit_s": 3.5
+      "fit_s": 3.8
      },
      {
       "learning_rate": 0.03,
@@ -539,7 +539,7 @@
       "val_brier": 0.14376984276657245,
       "val_brier_western": 0.055306029821492374,
       "val_mean_pred_western": 0.1026724851766717,
-      "fit_s": 2.6
+      "fit_s": 3.1
      },
      {
       "learning_rate": 0.03,
@@ -550,7 +550,7 @@
       "val_brier": 0.14516461274432887,
       "val_brier_western": 0.058650922105176855,
       "val_mean_pred_western": 0.09587417693951007,
-      "fit_s": 5.0
+      "fit_s": 5.8
      }
     ],
     "chosen": {

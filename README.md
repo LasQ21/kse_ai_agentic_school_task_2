@@ -53,10 +53,13 @@ alerts.in.ua. Сайт https://kse-air-alert-risk.vercel.app показує ст
 | Знімок для сайту не містить шляхів, токенів і сирих подій | `scripts/make_snapshot.py`, `tests/test_snapshot.py` | `pytest tests/test_snapshot.py -q` |
 | Частка тривог на alerts.in.ua вища, ніж на офіційних даних (y_1: 0.177 проти 0.122) | `reports/data_assumptions.md` §5, `reports/pipeline_run.md` | `python scripts/run_pipeline.py` |
 | Сайт показує знімок, а не живі дані | `site/public/snapshot.json`, `site/build.js` | `curl -s https://kse-air-alert-risk.vercel.app/snapshot.json \| head -c 200` |
-| Усі тести проходять (39) | `tests/` | `pytest -q` |
+| Перенавчання з того самого коміту відтворює моделі точно (max \|Δp\| = 0 на validation і зовнішній перевірці) | `reports/model_report.md` §7, `models/service_model_meta.json` (`code_version`) | `python scripts/train.py && python scripts/export_service_model.py`, далі порівняти прогнози з попередніми |
+| Тести проходять без `data/` і `models/`: 39 на синтетичному зразку; зі справжніми даними додатково ще 12 (усього 51) | `tests/`, `tests/sample_data.py`, `.github/workflows/tests.yml` | `pytest -q` |
 
 Детально: [reports/model_report.md](reports/model_report.md) (модель, метрики, сервіс, невирішене),
-[reports/data_assumptions.md](reports/data_assumptions.md) (дані та припущення).
+[reports/data_assumptions.md](reports/data_assumptions.md) (дані та припущення),
+[docs/decisions.md](docs/decisions.md) (хронологія рішень і помилок з комітами),
+[docs/model_choice.md](docs/model_choice.md) (GBM чи логістична регресія).
 
 Дані й моделі в репозиторій не включено (`data/`, `models/` у `.gitignore`): їх завантажує й будує `scripts/run_pipeline.py` з датасету Vadimkin/ukrainian-air-raid-sirens-dataset на GitHub і API alerts.in.ua (потрібен власний токен у `.env`).
 
