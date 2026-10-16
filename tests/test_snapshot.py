@@ -11,7 +11,7 @@ from make_snapshot import OUT, check  # noqa: E402
 
 
 @pytest.mark.parametrize("bad", ['{"p": "/Users/x/data/live/alerts.sqlite"}', '{"t": "Bearer abc"}',
-                                 '{"k": "1234567890:AAFj6NbXjbbAa3LyWVVlPaNm0Sstz0SYtqZ"}',
+                                 '{"k": "1234567890:' + "A" * 35 + '"}',   # синтетичний, не з реального токена
                                  '{"j": "eyJhbGciOiJIUzI1NiJ9.e30.x"}', '{"h": "' + "a" * 46 + '"}'])
 def test_check_rejects_secrets_and_paths(bad):
     with pytest.raises(SystemExit):
