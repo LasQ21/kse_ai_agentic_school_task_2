@@ -8,6 +8,10 @@
 Детально: [reports/model_report.md](reports/model_report.md) (модель, метрики, сервіс, невирішене),
 [reports/data_assumptions.md](reports/data_assumptions.md) (дані та припущення).
 
+Дані й моделі в репозиторій не включено (`data/`, `models/` у `.gitignore`): їх завантажує й будує `scripts/run_pipeline.py` з датасету Vadimkin/ukrainian-air-raid-sirens-dataset на GitHub і API alerts.in.ua (потрібен власний токен у `.env`).
+
+Ліцензію ще не обрано: поки її немає, код захищений авторським правом за замовчуванням.
+
 ## Джерело даних і визначення тривоги — важливо
 
 - **Модель навчена на офіційному Telegram-каналі «Повітряна тривога»** (@air_alert_ua,
