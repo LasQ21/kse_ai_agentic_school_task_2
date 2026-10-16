@@ -20,7 +20,9 @@ def code_version() -> dict:
     h = hashlib.sha256()
     for f in sorted((ROOT / "src").glob("*.py")):
         h.update(f.name.encode()); h.update(f.read_bytes())
-    return {"git_commit": commit, "src_sha256": h.hexdigest()[:16]}
+    dirty = bool(subprocess.run(["git", "status", "--porcelain", "--", "src", "scripts"], cwd=ROOT,
+                                capture_output=True, text=True).stdout.strip())
+    return {"git_commit": commit, "uncommitted_changes": dirty, "src_sha256": h.hexdigest()[:16]}
 
 
 if __name__ == "__main__":
