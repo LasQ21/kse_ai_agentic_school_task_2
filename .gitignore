@@ -17,3 +17,8 @@ models/
 
 # локальні налаштування Claude Code / прев'ю
 .claude/
+
+# Vercel (прив'язка проєкту)
+.vercel/
+.vercel
+.env*
