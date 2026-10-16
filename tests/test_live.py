@@ -56,7 +56,8 @@ def test_stale_data_is_reported_not_hidden(tmp_path, artifacts):
     from src.service import Forecaster, StaleDataError
     s = LiveStore(tmp_path / "a.sqlite")
     s.record_active("alerts_in_ua", [alert(1, "2026-10-15T20:00:00Z")], "2026-10-15T20:05:00+00:00")
-    fc = Forecaster(s.raw_events, artifacts.bundle(), last_update_fn=s.last_ok_poll)
+    fc = Forecaster(s.raw_events, artifacts.bundle(), last_update_fn=s.last_ok_poll,
+                    state_bundle=artifacts.state_bundle())
     now = pd.Timestamp("2026-10-15T23:05:00Z")
     f = fc.forecast(UNIT, now)
     assert f.stale and f.as_of == pd.Timestamp("2026-10-15T20:05:00+00:00") and f.data_age_s == 3 * 3600

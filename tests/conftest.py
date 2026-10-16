@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(Path(__file__).parent))
 from src.data import PROCESSED_DIR, RAW_DIR, load_vadimkin  # noqa: E402
-from src.service import SERVICE_MODEL, load_service_model  # noqa: E402
+from src.service import SERVICE_MODEL, STATE_MODEL, load_service_model  # noqa: E402
 
 
 @dataclass
@@ -20,9 +20,14 @@ class Artifacts:
     dataset: Path
     raw_csv: Path
     service_model: Path
+    dataset_state: Path
+    state_model: Path
 
     def bundle(self) -> dict:
         return load_service_model(self.service_model)
+
+    def state_bundle(self) -> dict:
+        return load_service_model(self.state_model)
 
     def raw(self) -> pd.DataFrame:
         return load_vadimkin(self.raw_csv).drop_duplicates()
@@ -30,8 +35,10 @@ class Artifacts:
 
 def _real() -> Artifacts | None:
     csvs = sorted((RAW_DIR / "vadimkin").glob("official_data_uk_*.csv"))
-    if SERVICE_MODEL.exists() and (PROCESSED_DIR / "dataset.parquet").exists() and csvs:
-        return Artifacts("real", PROCESSED_DIR / "dataset.parquet", csvs[-1], SERVICE_MODEL)
+    state = PROCESSED_DIR / "dataset_state.parquet"
+    if (SERVICE_MODEL.exists() and STATE_MODEL.exists() and (PROCESSED_DIR / "dataset.parquet").exists()
+            and state.exists() and csvs):
+        return Artifacts("real", PROCESSED_DIR / "dataset.parquet", csvs[-1], SERVICE_MODEL, state, STATE_MODEL)
     return None
 
 
@@ -45,7 +52,7 @@ def pytest_generate_tests(metafunc):
 def sample_artifacts(tmp_path_factory) -> Artifacts:
     import sample_data
     p = sample_data.build(tmp_path_factory.mktemp("sample"))
-    return Artifacts("sample", p["dataset"], p["raw_csv"], p["service_model"])
+    return Artifacts("sample", p["dataset"], p["raw_csv"], p["service_model"], p["dataset_state"], p["state_model"])
 
 
 @pytest.fixture(scope="session")
