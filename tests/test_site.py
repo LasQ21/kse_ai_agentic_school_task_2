@@ -72,3 +72,37 @@ def test_map_covers_every_model_unit():
     units = set(json.loads(meta.read_text())["units"])
     drawn = {u["id"] for u in json.loads(mp.read_text())["units"]}
     assert drawn == units
+
+
+def _get(handler, path):
+    srv = HTTPServer(("127.0.0.1", 0), handler)
+    threading.Thread(target=srv.handle_request, daemon=True).start()
+    c = HTTPConnection("127.0.0.1", srv.server_port, timeout=10)
+    c.request("GET", path)
+    r = c.getresponse()
+    out = r.status, r.getheader("Content-Type"), r.read().decode()
+    c.close()
+    srv.server_close()
+    return out
+
+
+def test_index_router_serves_forecast_and_keeps_webhook_health(monkeypatch):
+    import api.forecast as f
+    import api.index as idx
+
+    monkeypatch.setattr(f, "CACHE", FakeCache())
+    status, ctype, body = _get(idx.handler, "/api/forecast?x=1")
+    assert status == 200 and ctype.startswith("application/json") and len(json.loads(body)["units"]) == 2
+    assert _get(idx.handler, "/api/webhook")[::2] == (200, "ok")
+
+
+def test_index_router_forecast_failure_is_503_not_crash(monkeypatch):
+    import api.forecast as f
+    import api.index as idx
+
+    class Broken:
+        def get(self):
+            raise RuntimeError("x")
+
+    monkeypatch.setattr(f, "CACHE", Broken())
+    assert _get(idx.handler, "/api/forecast")[0] == 503

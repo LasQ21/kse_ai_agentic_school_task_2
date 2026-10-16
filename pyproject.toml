@@ -1,0 +1,20 @@
+# Для Vercel: збірка читає залежності звідси (дублюють requirements.txt — тримати синхронними).
+[project]
+name = "kse-air-alert-bot"
+version = "0.1.0"
+requires-python = ">=3.14"
+dependencies = [
+    "pandas==3.0.6",
+    "pyarrow==26.0.0",
+    "numpy==2.5.4",
+    "scikit-learn==1.9.1",
+    "scipy==1.18.1",
+    "joblib==1.6.0",
+    "requests==2.34.2",
+    "python-dotenv==1.2.4",
+    "python-telegram-bot==22.8",
+    "psycopg[binary]==3.3.6",
+]
+
+[tool.vercel]
+entrypoint = "api.index:handler"

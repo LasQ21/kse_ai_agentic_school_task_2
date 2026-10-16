@@ -1,4 +1,4 @@
-"""GET /api/forecast на Vercel: прогноз усіх районів для сайту (JSON).
+"""GET /api/forecast на Vercel (маршрутизується з api/index.py): прогноз усіх районів для сайту (JSON).
 
 Дані — Postgres (DATABASE_URL), який наповнює воркер; моделі — models/*.joblib у бандлі функції.
 Відповідь кешується на краю CDN на 60 с (s-maxage), тож база й моделі не навантажуються кожним відвідувачем.
@@ -20,7 +20,7 @@ CACHE = ForecastCache(live_forecaster)
 
 
 class handler(BaseHTTPRequestHandler):
-    def _send(self, code: int, body: dict, cache: str = "no-store"):
+    def _send_json(self, code: int, body: dict, cache: str = "no-store"):
         raw = json.dumps(body, ensure_ascii=False).encode()
         self.send_response(code)
         self.send_header("Content-Type", "application/json; charset=utf-8")
@@ -34,5 +34,5 @@ class handler(BaseHTTPRequestHandler):
             payload = build_payload(CACHE)
         except Exception as e:
             log.warning("forecast failed: %s", type(e).__name__)
-            return self._send(503, {"error": "forecast_unavailable"})
-        self._send(200, payload, "public, s-maxage=60, stale-while-revalidate=120")
+            return self._send_json(503, {"error": "forecast_unavailable"})
+        self._send_json(200, payload, "public, s-maxage=60, stale-while-revalidate=120")
