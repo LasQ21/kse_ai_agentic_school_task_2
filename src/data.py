@@ -248,12 +248,13 @@ def raions_from_units(units: list[str]) -> dict[str, list[str]]:
 
 
 def _coerce_times(df: pd.DataFrame) -> pd.DataFrame:
-    """pandas 3: concat стовпців datetime64[us] і [ns] дає object -> явно приводимо до datetime UTC."""
-    if all(pd.api.types.is_datetime64_any_dtype(df[c]) for c in ("started_at", "finished_at")):
-        return df
+    """Час -> datetime64[us, UTC]. pandas 3: concat [us] і [ns] дає object, а рядки без дробових
+    секунд парсяться як [s] — тоді запис межі вікна з мікросекундами падає (знайдено тестом API)."""
     df = df.copy()
     for c in ("started_at", "finished_at"):
-        df[c] = pd.to_datetime(df[c], utc=True, format="ISO8601")
+        if not pd.api.types.is_datetime64_any_dtype(df[c]):
+            df[c] = pd.to_datetime(df[c], utc=True, format="ISO8601")
+        df[c] = df[c].dt.as_unit("us")
     return df
 
 
