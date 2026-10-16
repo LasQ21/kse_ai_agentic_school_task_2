@@ -1,0 +1,628 @@
+{
+ "meta": {
+  "trained_at": "2026-10-16T11:40:25.157541+00:00",
+  "code_version": "efe1d4c",
+  "uncommitted_changes": true,
+  "split": "S",
+  "train": [
+   "2025-11-17",
+   "2026-06-11"
+  ],
+  "val": [
+   "2026-06-15",
+   "2026-07-28"
+  ],
+  "rows": {
+   "train": 518828,
+   "val": 108360
+  }
+ },
+ "selection": {
+  "any24": {
+   "logreg": {
+    "val_logloss_by_C": {
+     "0.01": 0.32400769731315143,
+     "0.1": 0.3241181253643716,
+     "1.0": 0.3241295211597131
+    },
+    "chosen_C": 0.01
+   },
+   "gbm": {
+    "grid": [
+     {
+      "learning_rate": 0.05,
+      "max_iter": 300,
+      "max_leaf_nodes": 31,
+      "val_logloss": 0.4030696598393801,
+      "fit_s": 3.6
+     },
+     {
+      "learning_rate": 0.05,
+      "max_iter": 600,
+      "max_leaf_nodes": 31,
+      "val_logloss": 0.42848598257351955,
+      "fit_s": 6.7
+     },
+     {
+      "learning_rate": 0.05,
+      "max_iter": 300,
+      "max_leaf_nodes": 63,
+      "val_logloss": 0.4125784808468742,
+      "fit_s": 4.8
+     },
+     {
+      "learning_rate": 0.1,
+      "max_iter": 300,
+      "max_leaf_nodes": 31,
+      "val_logloss": 0.4348579665617824,
+      "fit_s": 3.1
+     },
+     {
+      "learning_rate": 0.05,
+      "max_iter": 150,
+      "max_leaf_nodes": 15,
+      "min_samples_leaf": 500,
+      "val_logloss": 0.3884462087616726,
+      "fit_s": 1.4
+     },
+     {
+      "learning_rate": 0.03,
+      "max_iter": 300,
+      "max_leaf_nodes": 15,
+      "min_samples_leaf": 1000,
+      "val_logloss": 0.38848019126119343,
+      "fit_s": 2.7
+     },
+     {
+      "learning_rate": 0.05,
+      "max_iter": 300,
+      "max_leaf_nodes": 31,
+      "use_unit": false,
+      "val_logloss": 0.4302078727926477,
+      "fit_s": 3.3
+     },
+     {
+      "learning_rate": 0.05,
+      "max_iter": 150,
+      "max_leaf_nodes": 15,
+      "min_samples_leaf": 500,
+      "use_unit": false,
+      "val_logloss": 0.41032902150326883,
+      "fit_s": 1.5
+     },
+     {
+      "learning_rate": 0.03,
+      "max_iter": 300,
+      "max_leaf_nodes": 15,
+      "min_samples_leaf": 1000,
+      "use_unit": false,
+      "val_logloss": 0.40510591681284575,
+      "fit_s": 2.8
+     },
+     {
+      "learning_rate": 0.03,
+      "max_iter": 300,
+      "max_leaf_nodes": 7,
+      "min_samples_leaf": 2000,
+      "val_logloss": 0.3805774083916504,
+      "fit_s": 2.3
+     },
+     {
+      "learning_rate": 0.03,
+      "max_iter": 500,
+      "max_leaf_nodes": 15,
+      "min_samples_leaf": 2000,
+      "val_logloss": 0.39006321441564534,
+      "fit_s": 4.4
+     }
+    ],
+    "chosen": {
+     "learning_rate": 0.03,
+     "max_iter": 300,
+     "max_leaf_nodes": 7,
+     "min_samples_leaf": 2000
+    }
+   },
+   "family_val_logloss_non_western": {
+    "gbm": 0.2755384402220331,
+    "logreg": 0.28235236191874324
+   },
+   "family": "gbm",
+   "calibration": {
+    "chosen": "none",
+    "val_logloss_crossfit": {
+     "none": 0.38057740839165033,
+     "platt": 0.47503828496898104,
+     "isotonic": 0.4494327389813081
+    }
+   }
+  },
+  "q": {
+   "by_h": {
+    "1": {
+     "logreg": {
+      "val_logloss_by_C": {
+       "0.01": 0.17653919840738794,
+       "0.1": 0.17688696440232426,
+       "1.0": 0.1768709578379764
+      },
+      "chosen_C": 0.01
+     },
+     "gbm": {
+      "grid": [
+       {
+        "learning_rate": 0.05,
+        "max_iter": 300,
+        "max_leaf_nodes": 31,
+        "val_logloss": 0.19749008020017608,
+        "fit_s": 1.3
+       },
+       {
+        "learning_rate": 0.05,
+        "max_iter": 600,
+        "max_leaf_nodes": 31,
+        "val_logloss": 0.22349235555269717,
+        "fit_s": 2.7
+       },
+       {
+        "learning_rate": 0.05,
+        "max_iter": 300,
+        "max_leaf_nodes": 63,
+        "val_logloss": 0.21845595279658694,
+        "fit_s": 2.6
+       },
+       {
+        "learning_rate": 0.1,
+        "max_iter": 300,
+        "max_leaf_nodes": 31,
+        "val_logloss": 0.2248474769398197,
+        "fit_s": 1.3
+       },
+       {
+        "learning_rate": 0.05,
+        "max_iter": 150,
+        "max_leaf_nodes": 15,
+        "min_samples_leaf": 500,
+        "val_logloss": 0.1791211562853869,
+        "fit_s": 0.4
+       },
+       {
+        "learning_rate": 0.03,
+        "max_iter": 300,
+        "max_leaf_nodes": 15,
+        "min_samples_leaf": 1000,
+        "val_logloss": 0.18124988995967847,
+        "fit_s": 0.8
+       },
+       {
+        "learning_rate": 0.05,
+        "max_iter": 300,
+        "max_leaf_nodes": 31,
+        "use_unit": false,
+        "val_logloss": 0.18630264894854967,
+        "fit_s": 1.5
+       },
+       {
+        "learning_rate": 0.05,
+        "max_iter": 150,
+        "max_leaf_nodes": 15,
+        "min_samples_leaf": 500,
+        "use_unit": false,
+        "val_logloss": 0.17758556126879183,
+        "fit_s": 0.4
+       },
+       {
+        "learning_rate": 0.03,
+        "max_iter": 300,
+        "max_leaf_nodes": 15,
+        "min_samples_leaf": 1000,
+        "use_unit": false,
+        "val_logloss": 0.17677898200413145,
+        "fit_s": 0.8
+       },
+       {
+        "learning_rate": 0.03,
+        "max_iter": 300,
+        "max_leaf_nodes": 7,
+        "min_samples_leaf": 2000,
+        "val_logloss": 0.17452300290311348,
+        "fit_s": 0.4
+       },
+       {
+        "learning_rate": 0.03,
+        "max_iter": 500,
+        "max_leaf_nodes": 15,
+        "min_samples_leaf": 2000,
+        "val_logloss": 0.18138139135953046,
+        "fit_s": 1.2
+       }
+      ],
+      "chosen": {
+       "learning_rate": 0.03,
+       "max_iter": 300,
+       "max_leaf_nodes": 7,
+       "min_samples_leaf": 2000
+      }
+     },
+     "rows": {
+      "train": 44633,
+      "val": 12082,
+      "val_share_2plus": 0.04121834133421619
+     },
+     "calibration": {
+      "chosen": "platt",
+      "val_logloss_crossfit": {
+       "none": 0.17452470727225555,
+       "platt": 0.17017089221205028,
+       "isotonic": 0.17090099058329045
+      }
+     }
+    },
+    "3": {
+     "logreg": {
+      "val_logloss_by_C": {
+       "0.01": 0.5440985834383519,
+       "0.1": 0.5441868381122114,
+       "1.0": 0.5441991507229708
+      },
+      "chosen_C": 0.01
+     },
+     "gbm": {
+      "grid": [
+       {
+        "learning_rate": 0.05,
+        "max_iter": 300,
+        "max_leaf_nodes": 31,
+        "val_logloss": 0.559206061216183,
+        "fit_s": 1.9
+       },
+       {
+        "learning_rate": 0.05,
+        "max_iter": 600,
+        "max_leaf_nodes": 31,
+        "val_logloss": 0.5709246742090224,
+        "fit_s": 3.5
+       },
+       {
+        "learning_rate": 0.05,
+        "max_iter": 300,
+        "max_leaf_nodes": 63,
+        "val_logloss": 0.5690642857348905,
+        "fit_s": 3.4
+       },
+       {
+        "learning_rate": 0.1,
+        "max_iter": 300,
+        "max_leaf_nodes": 31,
+        "val_logloss": 0.57366180214812,
+        "fit_s": 1.6
+       },
+       {
+        "learning_rate": 0.05,
+        "max_iter": 150,
+        "max_leaf_nodes": 15,
+        "min_samples_leaf": 500,
+        "val_logloss": 0.5486379778087761,
+        "fit_s": 0.6
+       },
+       {
+        "learning_rate": 0.03,
+        "max_iter": 300,
+        "max_leaf_nodes": 15,
+        "min_samples_leaf": 1000,
+        "val_logloss": 0.5513565892143093,
+        "fit_s": 1.0
+       },
+       {
+        "learning_rate": 0.05,
+        "max_iter": 300,
+        "max_leaf_nodes": 31,
+        "use_unit": false,
+        "val_logloss": 0.5545291624061709,
+        "fit_s": 1.9
+       },
+       {
+        "learning_rate": 0.05,
+        "max_iter": 150,
+        "max_leaf_nodes": 15,
+        "min_samples_leaf": 500,
+        "use_unit": false,
+        "val_logloss": 0.546786052849916,
+        "fit_s": 0.6
+       },
+       {
+        "learning_rate": 0.03,
+        "max_iter": 300,
+        "max_leaf_nodes": 15,
+        "min_samples_leaf": 1000,
+        "use_unit": false,
+        "val_logloss": 0.5499390472343529,
+        "fit_s": 1.3
+       },
+       {
+        "learning_rate": 0.03,
+        "max_iter": 300,
+        "max_leaf_nodes": 7,
+        "min_samples_leaf": 2000,
+        "val_logloss": 0.5468645588438015,
+        "fit_s": 0.8
+       },
+       {
+        "learning_rate": 0.03,
+        "max_iter": 500,
+        "max_leaf_nodes": 15,
+        "min_samples_leaf": 2000,
+        "val_logloss": 0.5564535243687748,
+        "fit_s": 2.2
+       }
+      ],
+      "chosen": {
+       "learning_rate": 0.05,
+       "max_iter": 150,
+       "max_leaf_nodes": 15,
+       "min_samples_leaf": 500,
+       "use_unit": false
+      }
+     },
+     "rows": {
+      "train": 117089,
+      "val": 29585,
+      "val_share_2plus": 0.2377218184890992
+     },
+     "calibration": {
+      "chosen": "platt",
+      "val_logloss_crossfit": {
+       "none": 0.546766311557908,
+       "platt": 0.5340949258513175,
+       "isotonic": 0.5387367881100906
+      }
+     }
+    },
+    "6": {
+     "logreg": {
+      "val_logloss_by_C": {
+       "0.01": 0.6616852975404162,
+       "0.1": 0.6617476506460256,
+       "1.0": 0.6617542890311593
+      },
+      "chosen_C": 0.01
+     },
+     "gbm": {
+      "grid": [
+       {
+        "learning_rate": 0.05,
+        "max_iter": 300,
+        "max_leaf_nodes": 31,
+        "val_logloss": 0.6628079281805432,
+        "fit_s": 2.3
+       },
+       {
+        "learning_rate": 0.05,
+        "max_iter": 600,
+        "max_leaf_nodes": 31,
+        "val_logloss": 0.6725619027434739,
+        "fit_s": 3.9
+       },
+       {
+        "learning_rate": 0.05,
+        "max_iter": 300,
+        "max_leaf_nodes": 63,
+        "val_logloss": 0.670557772954572,
+        "fit_s": 3.4
+       },
+       {
+        "learning_rate": 0.1,
+        "max_iter": 300,
+        "max_leaf_nodes": 31,
+        "val_logloss": 0.6755174514771871,
+        "fit_s": 2.3
+       },
+       {
+        "learning_rate": 0.05,
+        "max_iter": 150,
+        "max_leaf_nodes": 15,
+        "min_samples_leaf": 500,
+        "val_logloss": 0.6545112423513709,
+        "fit_s": 0.9
+       },
+       {
+        "learning_rate": 0.03,
+        "max_iter": 300,
+        "max_leaf_nodes": 15,
+        "min_samples_leaf": 1000,
+        "val_logloss": 0.6571726720538499,
+        "fit_s": 1.7
+       },
+       {
+        "learning_rate": 0.05,
+        "max_iter": 300,
+        "max_leaf_nodes": 31,
+        "use_unit": false,
+        "val_logloss": 0.662097070910104,
+        "fit_s": 2.3
+       },
+       {
+        "learning_rate": 0.05,
+        "max_iter": 150,
+        "max_leaf_nodes": 15,
+        "min_samples_leaf": 500,
+        "use_unit": false,
+        "val_logloss": 0.6546294284437966,
+        "fit_s": 0.9
+       },
+       {
+        "learning_rate": 0.03,
+        "max_iter": 300,
+        "max_leaf_nodes": 15,
+        "min_samples_leaf": 1000,
+        "use_unit": false,
+        "val_logloss": 0.6559575406373214,
+        "fit_s": 1.8
+       },
+       {
+        "learning_rate": 0.03,
+        "max_iter": 300,
+        "max_leaf_nodes": 7,
+        "min_samples_leaf": 2000,
+        "val_logloss": 0.6556126427970422,
+        "fit_s": 1.4
+       },
+       {
+        "learning_rate": 0.03,
+        "max_iter": 500,
+        "max_leaf_nodes": 15,
+        "min_samples_leaf": 2000,
+        "val_logloss": 0.6615983412353336,
+        "fit_s": 3.1
+       }
+      ],
+      "chosen": {
+       "learning_rate": 0.05,
+       "max_iter": 150,
+       "max_leaf_nodes": 15,
+       "min_samples_leaf": 500
+      }
+     },
+     "rows": {
+      "train": 188488,
+      "val": 44466,
+      "val_share_2plus": 0.4727207304457338
+     },
+     "calibration": {
+      "chosen": "platt",
+      "val_logloss_crossfit": {
+       "none": 0.6544716320779512,
+       "platt": 0.6435758516642001,
+       "isotonic": 0.6447329014158392
+      }
+     }
+    },
+    "24": {
+     "logreg": {
+      "val_logloss_by_C": {
+       "0.01": 0.3536635589101166,
+       "0.1": 0.35375971068015755,
+       "1.0": 0.3537698794204554
+      },
+      "chosen_C": 0.01
+     },
+     "gbm": {
+      "grid": [
+       {
+        "learning_rate": 0.05,
+        "max_iter": 300,
+        "max_leaf_nodes": 31,
+        "val_logloss": 0.36884271469757074,
+        "fit_s": 3.2
+       },
+       {
+        "learning_rate": 0.05,
+        "max_iter": 600,
+        "max_leaf_nodes": 31,
+        "val_logloss": 0.3818249363491469,
+        "fit_s": 6.2
+       },
+       {
+        "learning_rate": 0.05,
+        "max_iter": 300,
+        "max_leaf_nodes": 63,
+        "val_logloss": 0.3755050285367606,
+        "fit_s": 5.2
+       },
+       {
+        "learning_rate": 0.1,
+        "max_iter": 300,
+        "max_leaf_nodes": 31,
+        "val_logloss": 0.38187217487083064,
+        "fit_s": 3.3
+       },
+       {
+        "learning_rate": 0.05,
+        "max_iter": 150,
+        "max_leaf_nodes": 15,
+        "min_samples_leaf": 500,
+        "val_logloss": 0.3487264861810241,
+        "fit_s": 1.4
+       },
+       {
+        "learning_rate": 0.03,
+        "max_iter": 300,
+        "max_leaf_nodes": 15,
+        "min_samples_leaf": 1000,
+        "val_logloss": 0.3493658156427047,
+        "fit_s": 2.7
+       },
+       {
+        "learning_rate": 0.05,
+        "max_iter": 300,
+        "max_leaf_nodes": 31,
+        "use_unit": false,
+        "val_logloss": 0.35702518261457145,
+        "fit_s": 3.9
+       },
+       {
+        "learning_rate": 0.05,
+        "max_iter": 150,
+        "max_leaf_nodes": 15,
+        "min_samples_leaf": 500,
+        "use_unit": false,
+        "val_logloss": 0.34220271310370437,
+        "fit_s": 1.5
+       },
+       {
+        "learning_rate": 0.03,
+        "max_iter": 300,
+        "max_leaf_nodes": 15,
+        "min_samples_leaf": 1000,
+        "use_unit": false,
+        "val_logloss": 0.34176896754830244,
+        "fit_s": 2.6
+       },
+       {
+        "learning_rate": 0.03,
+        "max_iter": 300,
+        "max_leaf_nodes": 7,
+        "min_samples_leaf": 2000,
+        "val_logloss": 0.3442043685151204,
+        "fit_s": 2.1
+       },
+       {
+        "learning_rate": 0.03,
+        "max_iter": 500,
+        "max_leaf_nodes": 15,
+        "min_samples_leaf": 2000,
+        "val_logloss": 0.3586287980980727,
+        "fit_s": 4.1
+       }
+      ],
+      "chosen": {
+       "learning_rate": 0.03,
+       "max_iter": 300,
+       "max_leaf_nodes": 15,
+       "min_samples_leaf": 1000,
+       "use_unit": false
+      }
+     },
+     "rows": {
+      "train": 336736,
+      "val": 69834,
+      "val_share_2plus": 0.8276054643869748
+     },
+     "calibration": {
+      "chosen": "none",
+      "val_logloss_crossfit": {
+       "none": 0.3417713330731084,
+       "platt": 0.34908235859335646,
+       "isotonic": 0.3702875913454635
+      }
+     }
+    }
+   },
+   "family_val_logloss_non_western_sum_over_h": {
+    "gbm": 1.7072908567207734,
+    "logreg": 1.7266421544356552
+   },
+   "family": "gbm"
+  }
+ }
+}
