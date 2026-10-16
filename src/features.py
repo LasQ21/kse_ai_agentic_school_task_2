@@ -175,6 +175,7 @@ FEATURES_LOGREG = [
 
 
 def add_derived(F: pd.DataFrame, units: list[str]) -> pd.DataFrame:
+    """unit_code (за відсортованим переліком одиниць), log1p лічильників, булеві ознаки -> int."""
     F = F.copy()
     F["unit_code"] = F.unit.map({u: i for i, u in enumerate(sorted(units))}).astype(int)
     for w in COUNT_WINDOWS_H:

@@ -34,16 +34,19 @@ log = logging.getLogger("live_worker")
 
 
 def env(name, default):
+    """Змінна середовища, приведена до типу значення за замовчуванням."""
     return type(default)(os.environ.get(name, default))
 
 
 def last_snapshot_time():
+    """Час останнього знімка історії в data/raw/alerts_in_ua (за назвою теки)."""
     d = RAW_DIR / "alerts_in_ua"
     snaps = sorted(p.name for p in d.iterdir() if p.is_dir()) if d.exists() else []
     return pd.Timestamp(datetime.strptime(snaps[-1], "%Y%m%dT%H%M%SZ"), tz="UTC") if snaps else None
 
 
 class Worker:
+    """Опитування раз на POLL_INTERVAL_S і знімок історії раз на ARCHIVE_EVERY_H в окремому потоці."""
     def __init__(self):
         self.store, self.source = LiveStore(), make_source()
         self.poll_s, self.archive_every = env("POLL_INTERVAL_S", 60), pd.Timedelta(hours=env("ARCHIVE_EVERY_H", 24.0))

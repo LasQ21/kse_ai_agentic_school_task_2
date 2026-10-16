@@ -28,10 +28,12 @@ STALE_AFTER = pd.Timedelta(minutes=10)
 
 
 class UnknownRegion(ValueError):
+    """Регіону немає серед одиниць моделі."""
     pass
 
 
 class ExcludedRegion(ValueError):
+    """Регіон свідомо виключено з моделі (EXCLUDED_OBLASTS)."""
     pass
 
 
@@ -51,6 +53,7 @@ def load_service_model(path: Path = SERVICE_MODEL) -> dict:
 
 @dataclass
 class Forecast:
+    """Прогноз для однієї одиниці разом зі станом даних."""
     region: str
     requested_for: pd.Timestamp     # на коли просили
     as_of: pd.Timestamp             # станом на коли реально пораховано (= останнє оновлення, якщо stale)
@@ -100,6 +103,7 @@ class Forecaster:
         raise UnknownRegion(f"{region}: невідомий регіон; див. list_regions()")
 
     def list_regions(self) -> list[str]:
+        """Одиниці моделі ('Область|Район' або 'Область|*')."""
         return list(self.units)
 
     def feature_frame(self, now: pd.Timestamp) -> pd.DataFrame:
@@ -113,6 +117,7 @@ class Forecaster:
         return add_derived(F, self.units)
 
     def predict_all(self, now) -> pd.DataFrame:
+        """Прогнози p_1, p_3, p_6 і модель (gbm / climate) для всіх одиниць у момент now."""
         F = self.feature_frame(now)
         preds, west = service_predict(F, self.models)
         out = F[["unit", "oblast", "t", "active"]].copy()
@@ -128,6 +133,7 @@ class Forecaster:
                 "data_age_s": age, "stale": stale, "table": self.predict_all(as_of)}
 
     def forecast(self, region: str, now) -> Forecast:
+        """Прогноз для регіону; якщо дані застарілі — станом на останнє оновлення (stale=True)."""
         unit = self.resolve(region)
         as_of, last, age, stale = self.status(now)
         row = self.predict_all(as_of).set_index("unit").loc[unit]
@@ -137,6 +143,7 @@ class Forecaster:
                         data_age_s=age, stale=stale)
 
     def predict(self, region: str, now, allow_stale: bool = False) -> dict[int, float]:
+        """{H: p}; StaleDataError, якщо дані застарілі й allow_stale=False."""
         f = self.forecast(region, now)
         if f.stale and not allow_stale:
             age = "невідомий (опитувань не було)" if f.data_age_s is None else f"{f.data_age_s / 60:.0f} хв"
@@ -146,6 +153,7 @@ class Forecaster:
 
 
 def live_forecaster(db_path=None) -> Forecaster:
+    """Forecaster на живому SQLite-сховищі воркера (вік даних — за останнім опитуванням)."""
     from src.live import LIVE_DB, LiveStore
     store = LiveStore(db_path or LIVE_DB)
     return Forecaster(store.raw_events, last_update_fn=store.last_ok_poll)

@@ -15,6 +15,7 @@ from src.features import WESTERN_OBLASTS  # noqa: E402
 
 
 def code_version() -> dict:
+    """Хеш коміту, прапорець незакомічених змін у src/ і scripts/, sha256 файлів src/."""
     commit = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=ROOT,
                             capture_output=True, text=True).stdout.strip() or None
     h = hashlib.sha256()

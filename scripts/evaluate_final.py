@@ -32,6 +32,7 @@ INK, MUTED, GRID, SURFACE = "#0b0b0b", "#52514e", "#e4e3df", "#fcfcfb"
 
 
 def predict_all(df, models):
+    """Прогнози всіх моделей за H і частка порушень монотонності GBM до виправлення."""
     out = {}
     gbm = {h: models[h]["gbm_cal"].predict(models[h]["gbm"].predict_proba(df[models[h]["gbm_features"]])[:, 1])
            for h in HORIZONS}
@@ -47,6 +48,7 @@ def predict_all(df, models):
 
 
 def calibration_figure(df, preds, title, path):
+    """Діаграма надійності (сервіс і клімат) для H = 1, 3, 6 -> PNG."""
     fig, axes = plt.subplots(1, 3, figsize=(12, 4.2), facecolor=SURFACE)
     for ax, h in zip(axes, HORIZONS):
         y = df[f"y_{h}"].to_numpy()

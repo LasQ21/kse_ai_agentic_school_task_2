@@ -33,6 +33,8 @@ def _ns(col: pd.Series) -> np.ndarray:
 
 def build_label_grid(events: pd.DataFrame, coverage: dict,
                      horizons: tuple[int, ...] = HORIZONS) -> pd.DataFrame:
+    """Сітка (одиниця × година) у кожному сегменті coverage: y_H — чи був старт у (t, t + H],
+    active_at_t, valid (t не ближче за H_max до інтервалу suspect_end)."""
     hmax = pd.Timedelta(hours=max(horizons))
     suspect = pd.DataFrame(coverage["suspect_end_intervals"])
     frames = []
@@ -68,6 +70,7 @@ def build_label_grid(events: pd.DataFrame, coverage: dict,
 
 @dataclass(frozen=True)
 class SplitSpec:
+    """Межі train / val / test за часом t (UTC) і сегмент, з якого береться test."""
     name: str
     train: tuple[str, str]
     val: tuple[str, str]
@@ -106,18 +109,6 @@ def assign_split(labels: pd.DataFrame, spec: SplitSpec) -> pd.Series:
     return out
 
 
-def check_embargo(labels: pd.DataFrame, split: pd.Series, horizons=HORIZONS) -> dict:
-    """Перевіряє, що вікна міток (t, t+H] попередньої частини не заходять у наступну."""
-    hmax = pd.Timedelta(hours=max(horizons))
-    res = {}
-    for a, b in (("train", "val"), ("val", "test")):
-        last_label_end = labels.t[split == a].max() + hmax
-        first_next = labels.t[split == b].min()
-        res[f"{a}->{b}"] = {"last_label_end": str(last_label_end), "next_first_t": str(first_next),
-                            "gap_h": (first_next - last_label_end).total_seconds() / 3600}
-    return res
-
-
 def backtest_folds(labels: pd.DataFrame, spec: SplitSpec):
     """Rolling-origin: train = усе до origin - EMBARGO, eval = [origin, origin + 28 д). Не заходить у test."""
     test_start = _ts(spec.test[0])
@@ -129,6 +120,7 @@ def backtest_folds(labels: pd.DataFrame, spec: SplitSpec):
 
 
 def build_and_save() -> pd.DataFrame:
+    """events.parquet + coverage.json -> labels.parquet з колонками split_<назва> для кожного SPLITS."""
     events = pd.read_parquet(PROCESSED_DIR / "events.parquet")
     coverage = json.loads((PROCESSED_DIR / "coverage.json").read_text())
     labels = build_label_grid(events, coverage)

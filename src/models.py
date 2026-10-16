@@ -80,14 +80,17 @@ class ClimateWave:
 
 
 def make_logreg(C):
+    """Логістична регресія зі стандартизацією ознак."""
     return make_pipeline(StandardScaler(), LogisticRegression(C=C, max_iter=2000))
 
 
 def gbm_features(use_unit: bool) -> list[str]:
+    """Ознаки GBM; без unit_code, якщо use_unit=False."""
     return FEATURES_GBM if use_unit else [f for f in FEATURES_GBM if f != "unit_code"]
 
 
 def make_gbm(learning_rate, max_iter, max_leaf_nodes, min_samples_leaf=200, l2=1.0, use_unit=True):
+    """HistGradientBoostingClassifier без early stopping, з фіксованим random_state (SEED)."""
     cat = [f == "unit_code" for f in gbm_features(use_unit)]
     return HistGradientBoostingClassifier(
         learning_rate=learning_rate, max_iter=max_iter, max_leaf_nodes=max_leaf_nodes,

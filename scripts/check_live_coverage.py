@@ -21,6 +21,7 @@ MIN_GAP = pd.Timedelta(minutes=5)
 
 
 def merge(iv):
+    """Об'єднує інтервали, що перетинаються."""
     out = []
     for a, b in sorted(iv):
         if out and a <= out[-1][1]:

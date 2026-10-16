@@ -1,20 +1,19 @@
 """API (TestClient) на тимчасовому SQLite-сховищі: схема відповіді, застереження, застарілі дані,
-виключені й невідомі регіони. Потребує models/service_model.joblib (інакше пропуск)."""
-import sys
-from pathlib import Path
+виключені й невідомі регіони. Модель сервісу — із синтетичного зразка і, якщо є, справжня."""
 from urllib.parse import quote
 
 import pandas as pd
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from src.service import SERVICE_MODEL  # noqa: E402
-
-pytestmark = pytest.mark.skipif(not SERVICE_MODEL.exists(), reason="немає models/service_model.joblib")
 BUCHA = "Київська область|Бучанський район"
 
 
-def make_client(tmp_path, poll_age: pd.Timedelta):
+@pytest.fixture(scope="module")
+def bundle(artifacts):
+    return artifacts.bundle()
+
+
+def make_client(tmp_path, poll_age: pd.Timedelta, bundle: dict):
     from fastapi.testclient import TestClient
     from src.api import create_app
     from src.live import LiveStore
@@ -26,12 +25,12 @@ def make_client(tmp_path, poll_age: pd.Timedelta):
              "alert_level": "red", "started_at": (now - poll_age - pd.Timedelta(minutes=10)).isoformat(),
              "finished_at": None}
     s.record_active("alerts_in_ua", [alert], (now - poll_age).isoformat())
-    return TestClient(create_app(Forecaster(s.raw_events, last_update_fn=s.last_ok_poll))), now - poll_age
+    return TestClient(create_app(Forecaster(s.raw_events, bundle, last_update_fn=s.last_ok_poll))), now - poll_age
 
 
-def test_fresh_data(tmp_path):
+def test_fresh_data(tmp_path, bundle):
     from src.api import DISCLAIMER
-    c, _ = make_client(tmp_path, pd.Timedelta(seconds=5))
+    c, _ = make_client(tmp_path, pd.Timedelta(seconds=5), bundle)
     h = c.get("/health").json()
     assert h["status"] == "ok" and h["data"]["stale"] is False and h["model"]["units"] == 105
 
@@ -54,37 +53,37 @@ def test_fresh_data(tmp_path):
     assert c.get("/forecast/" + quote("м. Київ")).json()["region"] == "м. Київ|*"
 
 
-def test_stale_data_is_flagged(tmp_path):
-    c, last = make_client(tmp_path, pd.Timedelta(hours=2))
+def test_stale_data_is_flagged(tmp_path, bundle):
+    c, last = make_client(tmp_path, pd.Timedelta(hours=2), bundle)
     assert c.get("/health").json()["status"] == "degraded"
     one = c.get("/forecast/" + quote(BUCHA)).json()
     assert one["stale"] is True and one["warning"] and one["data_age_s"] >= 2 * 3600 - 5
     assert pd.Timestamp(one["as_of"]) == last          # станом на останнє оновлення, не на зараз
 
 
-def test_excluded_and_unknown(tmp_path):
-    c, _ = make_client(tmp_path, pd.Timedelta(seconds=5))
+def test_excluded_and_unknown(tmp_path, bundle):
+    c, _ = make_client(tmp_path, pd.Timedelta(seconds=5), bundle)
     r = c.get("/forecast/" + quote("Донецька область"))
     assert r.status_code == 404 and r.json()["detail"]["error"] == "excluded"
     r = c.get("/forecast/" + quote("Неіснуюча область|Район"))
     assert r.status_code == 404 and r.json()["detail"]["error"] == "unknown"
 
 
-def test_quality_has_test_and_external_separately(tmp_path):
-    c, _ = make_client(tmp_path, pd.Timedelta(seconds=5))
+def test_quality_has_test_and_external_separately(tmp_path, bundle):
+    c, _ = make_client(tmp_path, pd.Timedelta(seconds=5), bundle)
     q = c.get("/quality").json()
     assert {"test", "external"} <= set(q)
     assert {(x["group"], x["model"]) for x in q["test"]} == {("western", "climate"), ("non_western", "gbm")}
 
 
-def test_cors_allows_site_get(tmp_path):
-    c, _ = make_client(tmp_path, pd.Timedelta(seconds=5))
+def test_cors_allows_site_get(tmp_path, bundle):
+    c, _ = make_client(tmp_path, pd.Timedelta(seconds=5), bundle)
     r = c.get("/health", headers={"Origin": "https://example.vercel.app"})
     assert r.headers.get("access-control-allow-origin") in ("*", "https://example.vercel.app")
     assert "access-control-allow-credentials" not in r.headers
 
 
-def test_only_public_endpoints_and_no_leaks(tmp_path, monkeypatch):
+def test_only_public_endpoints_and_no_leaks(tmp_path, monkeypatch, bundle):
     """Публічно лише прогнози, якість, регіони й health; без /docs, шляхів, токенів, сирих даних."""
     import json as _json
     import src.api as api
@@ -93,7 +92,7 @@ def test_only_public_endpoints_and_no_leaks(tmp_path, monkeypatch):
                                    "archive_running": False, "started_at": "s", "source": "alerts_in_ua",
                                    "errors": ["poll: ConnectionError('/Users/someone/secret Bearer abc')"]}))
     monkeypatch.setattr(api, "WORKER_STATUS", status)
-    c, _ = make_client(tmp_path, pd.Timedelta(seconds=5))
+    c, _ = make_client(tmp_path, pd.Timedelta(seconds=5), bundle)
     paths = {r.path for r in c.app.routes}
     assert paths == {"/health", "/regions", "/forecast", "/forecast/{region:path}", "/quality"}
     for p in ("/docs", "/redoc", "/openapi.json"):

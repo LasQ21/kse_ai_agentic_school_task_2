@@ -109,16 +109,17 @@ def test_split_boundaries_with_embargo(name):
         assert b0 - a1 + pd.Timedelta(hours=1) >= EMBARGO
 
 
-def test_split_on_real_labels_if_available():
-    p = Path(__file__).resolve().parents[1] / "data" / "processed" / "labels.parquet"
-    if not p.exists():
-        pytest.skip("data/processed/labels.parquet не побудовано")
-    L = pd.read_parquet(p)
+def test_split_on_built_labels(artifacts):
+    """Мітки з пайплайна (зразок або справжні): embargo між частинами, сегменти, валідність."""
+    L = pd.read_parquet(artifacts.dataset, columns=["t", "segment", "valid", "split_V", "y_1", "y_3", "y_6"])
     s = L.split_V
     hmax = pd.Timedelta(hours=max(HORIZONS))
-    assert L.t[s == "train"].max() + hmax < L.t[s == "val"].min()
-    assert L.t[s == "val"].max() + hmax < L.t[s == "test"].min()
-    assert set(L.segment[s == "external"]) == {"alerts_in_ua"}
+    parts = [x for x in ("train", "val", "test") if (s == x).any()]
+    assert parts[:2] == ["train", "val"]
+    for a, b in zip(parts, parts[1:]):
+        assert L.t[s == a].max() + hmax < L.t[s == b].min()
+    if (s == "external").any():
+        assert set(L.segment[s == "external"]) == {"alerts_in_ua"}
     assert set(L.segment[s.isin(["train", "val", "test"])]) == {"vadimkin"}
     assert not L.loc[s.notna(), "valid"].eq(False).any()
     assert ((L.y_1 <= L.y_3) & (L.y_3 <= L.y_6)).all()

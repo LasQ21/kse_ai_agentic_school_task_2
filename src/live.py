@@ -38,6 +38,7 @@ def _now() -> str:
 
 
 class AlertSource(Protocol):
+    """Джерело активних тривог для воркера."""
     name: str
 
     def fetch_active(self) -> list[dict]:
@@ -45,6 +46,7 @@ class AlertSource(Protocol):
 
 
 class AlertsInUaSource:
+    """alerts.in.ua: активні тривоги й історія; токен лише з .env / середовища."""
     name = "alerts_in_ua"
 
     def __init__(self, token: str | None = None):
@@ -66,8 +68,8 @@ class AlertsInUaSource:
 class UkraineAlarmSource:
     """Офіційне API (api.ukrainealarm.com) — місце під ключ UKRAINEALARM_API_KEY.
 
-    Ключа поки немає (2026-10-15: доступний рядок виявився токеном alerts.in.ua, HTTP 401),
-    тому формат відповіді не перевірено і мапінг у RAW_FIELDS не реалізовано навмисно.
+    Ключа немає й не буде (рішення 2026-10-16), тому формат відповіді не перевірено і мапінг
+    у RAW_FIELDS не реалізовано навмисно.
     """
     name = "ukrainealarm"
 
@@ -82,11 +84,13 @@ class UkraineAlarmSource:
 
 
 def make_source(name: str | None = None) -> AlertSource:
+    """Джерело за назвою (аргумент або ALERT_SOURCE); за замовчуванням alerts_in_ua."""
     name = name or os.environ.get("ALERT_SOURCE", "alerts_in_ua")
     return {"alerts_in_ua": AlertsInUaSource, "ukrainealarm": UkraineAlarmSource}[name]()
 
 
 class LiveStore:
+    """SQLite-сховище сирих записів alerts.in.ua, журнал опитувань і помилок."""
     def __init__(self, path: Path = LIVE_DB):
         path.parent.mkdir(parents=True, exist_ok=True)
         self.path = path
@@ -146,6 +150,7 @@ class LiveStore:
             c.execute("INSERT INTO polls VALUES (?,?,?,?,?,?)", (fetched_at, source, "history", 1, len(alerts), None))
 
     def record_error(self, source: str, kind: str, err: str):
+        """Неуспішне опитування -> журнал polls (текст помилки обрізано до 500 символів)."""
         with self._conn() as c:
             c.execute("INSERT INTO polls VALUES (?,?,?,?,?,?)", (_now(), source, kind, 0, 0, err[:500]))
 
@@ -160,17 +165,13 @@ class LiveStore:
                 self.record_history("alerts_in_ua", payload.get("alerts", []), fetched)
 
     def last_ok_poll(self, kind: str = "active") -> pd.Timestamp | None:
+        """Час останнього успішного опитування (за ним сервіс рахує вік даних)."""
         with self._conn() as c:
             r = c.execute("SELECT MAX(polled_at) FROM polls WHERE ok=1 AND kind=?", (kind,)).fetchone()[0]
         return pd.Timestamp(r) if r else None
 
-    def first_ok_poll(self) -> pd.Timestamp | None:
-        with self._conn() as c:
-            r = c.execute("SELECT MIN(polled_at) FROM polls WHERE ok=1 AND kind='active'").fetchone()[0]
-        return pd.Timestamp(r) if r else None
-
     def raw_events(self, source: str = "alerts_in_ua") -> pd.DataFrame:
-        """Події у форматі EVENT_COLS. Відкриті тривоги цензуруються часом останнього опитування."""
+        """Події у форматі EVENT_COLS. Відкриті тривоги мають кінець OPEN_END (див. нижче)."""
         with self._conn() as c:
             raw = pd.read_sql_query("SELECT * FROM alerts WHERE source=?", c, params=(source,))
         if raw.empty:
@@ -183,6 +184,7 @@ class LiveStore:
 
 
 def poll_once(store: LiveStore, source: AlertSource) -> dict:
+    """Одне опитування активних тривог; помилка записується в журнал, а не кидається."""
     polled_at = _now()
     try:
         alerts = source.fetch_active()
@@ -206,6 +208,7 @@ def reconcile_with_history(store: LiveStore, source: AlertsInUaSource, uids=None
 
 
 def run_poller(interval_s: int = 90, source_name: str | None = None):
+    """Нескінченний цикл poll_once (для scripts/live_poll.py; воркер — scripts/live_worker.py)."""
     store, source = LiveStore(), make_source(source_name)
     while True:
         log.info("poll: %s", poll_once(store, source))

@@ -11,6 +11,7 @@ EPS = 1e-6
 
 
 def metrics(y: np.ndarray, p: np.ndarray) -> dict:
+    """Brier, log loss, ROC-AUC, PR-AUC, частка позитивних і середній прогноз (AUC — NaN, якщо клас один)."""
     y = np.asarray(y, dtype=int)
     p = np.clip(np.asarray(p, dtype=float), EPS, 1 - EPS)
     both = 0 < y.sum() < len(y)

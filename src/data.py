@@ -68,6 +68,7 @@ def download_vadimkin(dest: Path | None = None) -> Path:
 
 
 def fetch_history(uid: int, token: str, retries: int = 3) -> dict:
+    """Історія тривог області за ~30 діб з alerts.in.ua; на 429 чекає 65 с і повторює."""
     url = f"{ALERTS_IN_UA_API}/regions/{uid}/alerts/month_ago.json"
     for attempt in range(retries):
         r = requests.get(url, headers={"Authorization": f"Bearer {token}"}, timeout=60)
@@ -138,6 +139,7 @@ def normalize_name(s):
 
 
 def load_vadimkin(path: Path) -> pd.DataFrame:
+    """CSV Vadimkin -> EVENT_COLS: час у UTC, нормалізовані назви, source='vadimkin'."""
     df = pd.read_csv(path)
     for c in ("started_at", "finished_at"):
         df[c] = pd.to_datetime(df[c], utc=True, format="ISO8601")

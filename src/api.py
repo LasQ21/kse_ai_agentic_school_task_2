@@ -55,6 +55,7 @@ def _item(r) -> dict:
 
 
 def create_app(forecaster: Forecaster | None = None) -> FastAPI:
+    """Застосунок FastAPI з п'ятьма GET-маршрутами. Без forecaster — живий (SQLite воркера)."""
     # Публічно — лише прогнози, якість і health: без /docs, /redoc, /openapi.json.
     app = FastAPI(title="Прогноз повітряних тривог", description=DISCLAIMER,
                   docs_url=None, redoc_url=None, openapi_url=None)

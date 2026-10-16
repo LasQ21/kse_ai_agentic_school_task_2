@@ -159,7 +159,7 @@
   - `t ≥ start + 7 діб`;
   - вікно не перетинає `suspect_end`.
 - **Embargo.** Вікна міток train закінчуються за **19 год** до першого `t` validation; так само між
-  validation і test (`check_embargo`).
+  validation і test (перевіряють `tests/test_leakage.py`: межі `SPLITS` і побудовані мітки).
 - **Rolling-origin backtest** (5 вікон, origins 1-го числа березня–липня 2026):
   - train розширюється до `origin − 24 год`;
   - оцінка на 28 днях;

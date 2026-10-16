@@ -32,6 +32,7 @@ GROUPS = {"overall": None, "non_western": False}
 
 
 def predictions(df, models, part):
+    """Прогнози клімату, клімату + хвилі, лог. регресії й GBM (на external — як у сервісі)."""
     raw = {h: models[h]["gbm"].predict_proba(df[models[h]["gbm_features"]])[:, 1] for h in HORIZONS}
     if part == "external":
         raw, _ = enforce_monotone({h: models[h]["gbm_cal"].predict(raw[h]) for h in HORIZONS})
@@ -44,6 +45,7 @@ def predictions(df, models, part):
 
 
 def day_bootstrap(t, y, preds, pairs, rng):
+    """Brier skill для пар (A, B): точкова оцінка й 95% CI блочного бутстрепу по днях."""
     codes, days = pd.factorize(t.dt.floor("D"))
     idx = rng.integers(0, len(days), size=(N_BOOT, len(days)))
     se = {k: np.bincount(codes, weights=(p - y) ** 2, minlength=len(days)) for k, p in preds.items()}
@@ -109,6 +111,7 @@ def main():
 
 
 def write_md(R):
+    """Таблиці з baseline_comparison.csv -> reports/baseline_comparison.md."""
     names = {"gbm": "GBM", "climate": "клімат", "logreg": "лог. регресія", "climate_wave": "клімат + хвиля"}
     L = ["# GBM проти баз", "", "Згенеровано `scripts/compare_baselines.py`. Brier skill = 1 − Brier(A) / Brier(B):",
          "> 0 — A краща. CI 95%: блочний бутстреп по днях (validation, зовнішня перевірка: 2000 повторів;",

@@ -50,15 +50,13 @@ def test_history_gives_exact_end(tmp_path):
     assert s.raw_events().finished_at.iloc[0] == pd.Timestamp("2026-10-15T20:12:00Z")
 
 
-def test_stale_data_is_reported_not_hidden(tmp_path):
+def test_stale_data_is_reported_not_hidden(tmp_path, artifacts):
     """Полер зупинився: прогноз станом на останнє оновлення, stale=True, predict() відмовляє."""
     import pytest
-    from src.service import Forecaster, StaleDataError, SERVICE_MODEL
-    if not SERVICE_MODEL.exists():
-        pytest.skip("немає models/service_model.joblib")
+    from src.service import Forecaster, StaleDataError
     s = LiveStore(tmp_path / "a.sqlite")
     s.record_active("alerts_in_ua", [alert(1, "2026-10-15T20:00:00Z")], "2026-10-15T20:05:00+00:00")
-    fc = Forecaster(s.raw_events, last_update_fn=s.last_ok_poll)
+    fc = Forecaster(s.raw_events, artifacts.bundle(), last_update_fn=s.last_ok_poll)
     now = pd.Timestamp("2026-10-15T23:05:00Z")
     f = fc.forecast(UNIT, now)
     assert f.stale and f.as_of == pd.Timestamp("2026-10-15T20:05:00+00:00") and f.data_age_s == 3 * 3600

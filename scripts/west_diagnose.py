@@ -15,6 +15,7 @@ from src.split import HORIZONS  # noqa: E402
 
 
 def val_predictions():
+    """Train і validation з прогнозами клімату й каліброваного GBM (test не завантажується)."""
     D = pd.read_parquet(PROCESSED_DIR / "dataset.parquet")
     D = D[D.split_V.isin(["train", "val"])]
     assert not D.split_V.isin(["test", "external"]).any()

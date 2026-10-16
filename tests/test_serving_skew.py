@@ -1,41 +1,29 @@
 """Training/serving skew: predict() на історичний момент t дає ті самі ознаки й прогнози,
 що й офлайн-таблиця, з якої рахувалися метрики. Моменти беруться лише з validation.
 
-Потребує data/ і models/ (не в git) — інакше тести пропускаються.
+Проганяється на синтетичному зразку (tests/sample_data.py) і, якщо вони є, на справжніх data/ і models/.
 """
-import sys
-from pathlib import Path
-
 import numpy as np
 import pandas as pd
 import pytest
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT))
-from src.data import PROCESSED_DIR, RAW_DIR, load_vadimkin  # noqa: E402
-from src.features import FEATURES_GBM  # noqa: E402
-from src.models import service_predict  # noqa: E402
+from src.features import FEATURES_GBM
+from src.models import service_predict
 
-SERVICE_MODEL = ROOT / "models" / "service_model.joblib"
-needs = pytest.mark.skipif(
-    not (SERVICE_MODEL.exists() and (PROCESSED_DIR / "dataset.parquet").exists()
-         and any((RAW_DIR / "vadimkin").glob("official_data_uk_*.csv"))),
-    reason="немає data/ або models/service_model.joblib")
 N_TIMES = 12
 
 
 @pytest.fixture(scope="module")
-def setup():
-    from src.service import Forecaster, load_service_model
-    D = pd.read_parquet(PROCESSED_DIR / "dataset.parquet")
+def setup(artifacts):
+    from src.service import Forecaster
+    D = pd.read_parquet(artifacts.dataset)
     val = D[D.split_V == "val"]
     times = pd.Series(val.t.unique()).sample(N_TIMES, random_state=0).sort_values().tolist()
-    raw = load_vadimkin(max((RAW_DIR / "vadimkin").glob("official_data_uk_*.csv"))).drop_duplicates()
-    bundle = load_service_model()
+    raw = artifacts.raw()
+    bundle = artifacts.bundle()
     return D, times, raw, bundle, Forecaster(lambda: raw, bundle)
 
 
-@needs
 def test_features_and_predictions_match_offline(setup):
     D, times, raw, bundle, fc = setup
     for t in times:
@@ -51,7 +39,6 @@ def test_features_and_predictions_match_offline(setup):
             assert np.allclose(p_live[h], p_off[h], atol=1e-12), (t, h)
 
 
-@needs
 def test_predict_api_matches_predict_all(setup):
     D, times, raw, bundle, fc = setup
     t = times[0]
@@ -64,7 +51,6 @@ def test_predict_api_matches_predict_all(setup):
     assert fc.forecast("Харківська область|Харківський район", t).model == "gbm"
 
 
-@needs
 def test_future_events_do_not_change_prediction(setup):
     D, times, raw, bundle, fc = setup
     from src.service import Forecaster
@@ -82,7 +68,6 @@ def test_future_events_do_not_change_prediction(setup):
         pd.testing.assert_frame_equal(base, Forecaster(lambda v=variant: v, bundle).predict_all(t))
 
 
-@needs
 def test_excluded_and_unknown_regions(setup):
     from src.service import ExcludedRegion, UnknownRegion
     fc = setup[4]

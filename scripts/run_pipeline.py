@@ -102,6 +102,7 @@ def tests(args):
 
 
 def write_summary(timings):
+    """Підсумок прогону -> reports/pipeline_run.md (без test)."""
     R = ROOT / "reports"
     cov = json.loads((PROCESSED_DIR / "coverage.json").read_text())
     L = pd.read_parquet(PROCESSED_DIR / "labels.parquet")
