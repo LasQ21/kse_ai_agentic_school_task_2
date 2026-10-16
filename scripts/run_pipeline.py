@@ -6,7 +6,8 @@
 Розбиття (src.split.SPLITS["V"]) і правило «захід — клімат, решта — GBM» (src.models.service_predict)
 зафіксовані в коді. TEST НЕ ОЦІНЮЄТЬСЯ: test уже оцінено двічі й заморожено. Фінальний крок для
 test запускається лише вручну:
-  python scripts/evaluate_final.py --part test --allow-test
+  python scripts/evaluate_final.py --part test --allow-test   # старі цілі 1/3/6
+  python scripts/evaluate_state.py --part test --allow-test   # цілі бота (24 год, лічильник)
 Підсумок прогону: reports/pipeline_run.md.
 """
 import argparse
@@ -93,6 +94,26 @@ def export(args):
 @step("зовнішня перевірка (alerts.in.ua; НЕ test)")
 def external(args):
     run_script("scripts/evaluate_final.py", "--part", "external")
+
+
+@step("цілі й ознаки бота -> state_labels.parquet, dataset_state.parquet")
+def state_data(args):
+    from src.state_features import build_state_dataset
+    from src.state_targets import build_and_save as build_state_labels
+    build_state_labels()
+    build_state_dataset()
+
+
+@step("моделі бота: навчання, вибір і калібрування на validation")
+def state_train(args):
+    run_script("scripts/train_state.py")
+
+
+@step("моделі бота: validation, backtest, зовнішня перевірка (НЕ test)")
+def state_eval(args):
+    run_script("scripts/evaluate_state.py", "--part", "val")
+    run_script("scripts/backtest_state.py")
+    run_script("scripts/evaluate_state.py", "--part", "external")
 
 
 @step("pytest")
