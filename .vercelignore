@@ -1,0 +1,18 @@
+# Є .vercelignore -> CLI не читає .gitignore, тож моделі (models/) потрапляють у деплой, а секрети — ні.
+.env
+.env.*
+!.env.example
+.venv
+.git
+.claude
+.github
+.pytest_cache
+__pycache__
+data
+reports
+docs
+tests
+site
+Dockerfile
+docker-compose.yml
+.dockerignore

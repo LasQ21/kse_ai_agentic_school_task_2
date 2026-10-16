@@ -27,7 +27,7 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from src.data import RAW_DIR, archive_alerts_in_ua_history  # noqa: E402
-from src.live import LIVE_DB, LiveStore, make_source, poll_once  # noqa: E402
+from src.live import LIVE_DB, make_source, open_store, poll_once  # noqa: E402
 
 STATUS = LIVE_DB.parent / "worker_status.json"
 log = logging.getLogger("live_worker")
@@ -48,7 +48,7 @@ def last_archive_time():
 class Worker:
     """Опитування раз на POLL_INTERVAL_S і знімок історії раз на ARCHIVE_EVERY_H в окремому потоці."""
     def __init__(self):
-        self.store, self.source = LiveStore(), make_source()
+        self.store, self.source = open_store(), make_source()
         self.poll_s, self.archive_every = env("POLL_INTERVAL_S", 60), pd.Timedelta(hours=env("ARCHIVE_EVERY_H", 24.0))
         self.stop = threading.Event()
         self.archive_thread = None
@@ -99,7 +99,7 @@ class Worker:
 
 
 def health() -> int:
-    last = LiveStore().last_ok_poll()
+    last = open_store().last_ok_poll()
     max_age = env("HEALTH_MAX_AGE_S", 300)
     age = None if last is None else (pd.Timestamp.now(tz="UTC") - last).total_seconds()
     ok = age is not None and age <= max_age

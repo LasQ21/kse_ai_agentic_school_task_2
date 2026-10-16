@@ -16,6 +16,6 @@ jobs:
         with:
           python-version: "3.14"
           cache: pip
-      - run: pip install -r requirements.txt
+      - run: pip install -r requirements-dev.txt
       # Без data/ і models/: тести сервісу йдуть на синтетичному зразку (tests/sample_data.py).
       - run: python -m pytest -q

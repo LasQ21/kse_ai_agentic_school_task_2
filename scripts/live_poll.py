@@ -1,4 +1,4 @@
-"""Живі дані в data/live/alerts.sqlite.
+"""Живі дані в data/live/alerts.sqlite (або в Postgres, якщо задано DATABASE_URL).
 
   python scripts/live_poll.py --import-archive   # стартова історія з data/raw/alerts_in_ua/*
   python scripts/live_poll.py --once             # одне опитування активних тривог
@@ -14,7 +14,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from src.live import LiveStore, make_source, poll_once, reconcile_with_history, run_poller  # noqa: E402
+from src.live import make_source, open_store, poll_once, reconcile_with_history, run_poller  # noqa: E402
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -26,7 +26,7 @@ if __name__ == "__main__":
     g.add_argument("--reconcile", action="store_true")
     ap.add_argument("--source")
     a = ap.parse_args()
-    store = LiveStore()
+    store = open_store()
     if a.import_archive:
         store.import_archive()
         print("imported; events:", len(store.raw_events()))

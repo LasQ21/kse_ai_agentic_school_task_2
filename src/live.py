@@ -183,6 +183,16 @@ class LiveStore:
         return normalize_alerts_in_ua(raw)
 
 
+def open_store(db_path: Path | None = None):
+    """Сховище живих даних: Postgres, якщо задано DATABASE_URL (Vercel / хмарна БД), інакше SQLite."""
+    load_dotenv(ROOT / ".env")
+    dsn = None if db_path else os.environ.get("DATABASE_URL", "").strip()
+    if dsn:
+        from src.live_pg import PgLiveStore
+        return PgLiveStore(dsn)
+    return LiveStore(db_path or LIVE_DB)
+
+
 def poll_once(store: LiveStore, source: AlertSource) -> dict:
     """Одне опитування активних тривог; помилка записується в журнал, а не кидається."""
     polled_at = _now()
@@ -209,7 +219,7 @@ def reconcile_with_history(store: LiveStore, source: AlertsInUaSource, uids=None
 
 def run_poller(interval_s: int = 90, source_name: str | None = None):
     """Нескінченний цикл poll_once (для scripts/live_poll.py; воркер — scripts/live_worker.py)."""
-    store, source = LiveStore(), make_source(source_name)
+    store, source = open_store(), make_source(source_name)
     while True:
         log.info("poll: %s", poll_once(store, source))
         time.sleep(interval_s)

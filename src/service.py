@@ -191,9 +191,9 @@ class Forecaster:
 
 
 def live_forecaster(db_path=None) -> Forecaster:
-    """Forecaster на живому SQLite-сховищі воркера (вік даних — за останнім опитуванням)."""
-    from src.live import LIVE_DB, LiveStore
-    store = LiveStore(db_path or LIVE_DB)
+    """Forecaster на живому сховищі воркера: SQLite або Postgres (open_store). Вік даних — за останнім опитуванням."""
+    from src.live import open_store
+    store = open_store(db_path)
     return Forecaster(store.raw_events, last_update_fn=store.last_ok_poll)
 
 
