@@ -35,6 +35,15 @@ class ExcludedRegion(ValueError):
     pass
 
 
+class StaleDataError(RuntimeError):
+    """Живі дані застаріли (полер зупинений / джерело відстало)."""
+
+
+def _utc(t) -> pd.Timestamp:
+    t = pd.Timestamp(t)
+    return t.tz_convert("UTC") if t.tzinfo else t.tz_localize("UTC")
+
+
 def load_service_model(path: Path = SERVICE_MODEL) -> dict:
     # joblib = pickle: безпечно лише для власних артефактів (scripts/export_service_model.py).
     return joblib.load(path)
@@ -43,12 +52,13 @@ def load_service_model(path: Path = SERVICE_MODEL) -> dict:
 @dataclass
 class Forecast:
     region: str
-    computed_for: pd.Timestamp
-    probabilities: dict[int, float]
-    active_now: bool
-    model: str               # "gbm" або "climate"
+    requested_for: pd.Timestamp     # на коли просили
+    as_of: pd.Timestamp             # станом на коли реально пораховано (= останнє оновлення, якщо stale)
+    probabilities: dict[int, float]  # P(старт нової тривоги в (as_of, as_of + H])
+    active_now: bool                # активна станом на as_of
+    model: str                      # "gbm" або "climate"
     data_last_update: pd.Timestamp | None
-    data_age_s: float | None
+    data_age_s: float | None        # requested_for - data_last_update
     stale: bool
 
 
@@ -61,7 +71,23 @@ class Forecaster:
         self.bundle = bundle or load_service_model()
         self.models, self.meta = self.bundle["models"], self.bundle["meta"]
         self.units = self.meta["units"]
+        # Без last_update_fn — історичний режим (офлайн, тести): дані вважаються повними на now.
+        self.live = last_update_fn is not None
         self.last_update_fn = last_update_fn or (lambda: None)
+
+    def status(self, now) -> tuple[pd.Timestamp, pd.Timestamp | None, float | None, bool]:
+        """(as_of, last_update, age_s, stale). Якщо дані застарілі, прогноз рахується станом на
+        останнє оновлення: ми не знаємо, що сталося після, і не вдаємо, що знаємо."""
+        now = _utc(now)
+        if not self.live:
+            return now, None, None, False
+        last = self.last_update_fn()
+        if last is None:
+            return now, None, None, True
+        last = _utc(last)
+        age = (now - last).total_seconds()
+        stale = age > STALE_AFTER.total_seconds()
+        return (min(now, last) if stale else now), last, age, stale
 
     def resolve(self, region: str) -> str:
         """Назва району 'Область|Район', або область, де одна одиниця на всю область."""
@@ -95,19 +121,28 @@ class Forecaster:
         out["model"] = np.where(west, "climate", "gbm")
         return out
 
+    def snapshot(self, now) -> dict:
+        """Прогноз для всіх одиниць + стан даних (для API: GET /forecast)."""
+        as_of, last, age, stale = self.status(now)
+        return {"requested_for": _utc(now), "as_of": as_of, "data_last_update": last,
+                "data_age_s": age, "stale": stale, "table": self.predict_all(as_of)}
+
     def forecast(self, region: str, now) -> Forecast:
         unit = self.resolve(region)
-        row = self.predict_all(now).set_index("unit").loc[unit]
-        last = self.last_update_fn()
-        now_ts = row.t
-        age = (now_ts - last).total_seconds() if last is not None else None
-        return Forecast(region=unit, computed_for=now_ts,
+        as_of, last, age, stale = self.status(now)
+        row = self.predict_all(as_of).set_index("unit").loc[unit]
+        return Forecast(region=unit, requested_for=_utc(now), as_of=as_of,
                         probabilities={h: float(row[f"p_{h}"]) for h in sorted(self.models)},
                         active_now=bool(row.active), model=row.model, data_last_update=last,
-                        data_age_s=age, stale=age is None or age > STALE_AFTER.total_seconds())
+                        data_age_s=age, stale=stale)
 
-    def predict(self, region: str, now) -> dict[int, float]:
-        return self.forecast(region, now).probabilities
+    def predict(self, region: str, now, allow_stale: bool = False) -> dict[int, float]:
+        f = self.forecast(region, now)
+        if f.stale and not allow_stale:
+            age = "невідомий (опитувань не було)" if f.data_age_s is None else f"{f.data_age_s / 60:.0f} хв"
+            raise StaleDataError(f"живі дані застаріли: вік {age}; прогноз був би станом на {f.as_of}. "
+                                 "Запустіть воркер (scripts/live_worker.py) або передайте allow_stale=True")
+        return f.probabilities
 
 
 def live_forecaster(db_path=None) -> Forecaster:
@@ -116,10 +151,14 @@ def live_forecaster(db_path=None) -> Forecaster:
     return Forecaster(store.raw_events, last_update_fn=store.last_ok_poll)
 
 
-def predict(region: str, now=None) -> dict[int, float]:
-    """Публічна функція: прогноз для регіону на момент now (за замовчуванням — зараз) з живих даних."""
+def predict(region: str, now=None, allow_stale: bool = False) -> dict[int, float]:
+    """Публічна функція: прогноз для регіону на момент now (за замовчуванням — зараз) з живих даних.
+
+    Якщо живі дані старші за STALE_AFTER — StaleDataError (або прогноз станом на останнє
+    оновлення з allow_stale=True; деталі — live_forecaster().forecast(...)).
+    """
     now = now or pd.Timestamp.now(tz="UTC")
-    return live_forecaster().predict(region, now)
+    return live_forecaster().predict(region, now, allow_stale=allow_stale)
 
 
-__all__ = ["predict", "Forecaster", "Forecast", "live_forecaster", "WESTERN_OBLASTS"]
+__all__ = ["predict", "Forecaster", "Forecast", "StaleDataError", "live_forecaster", "WESTERN_OBLASTS"]

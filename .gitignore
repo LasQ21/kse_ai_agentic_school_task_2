@@ -14,3 +14,6 @@ models/
 
 # macOS
 .DS_Store
+
+# локальні налаштування Claude Code / прев'ю
+.claude/
