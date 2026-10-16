@@ -82,3 +82,27 @@ def test_cors_allows_site_get(tmp_path):
     r = c.get("/health", headers={"Origin": "https://example.vercel.app"})
     assert r.headers.get("access-control-allow-origin") in ("*", "https://example.vercel.app")
     assert "access-control-allow-credentials" not in r.headers
+
+
+def test_only_public_endpoints_and_no_leaks(tmp_path, monkeypatch):
+    """Публічно лише прогнози, якість, регіони й health; без /docs, шляхів, токенів, сирих даних."""
+    import json as _json
+    import src.api as api
+    status = tmp_path / "worker_status.json"
+    status.write_text(_json.dumps({"last_poll": "2026-10-16T07:00:00+00:00", "last_archive": "x",
+                                   "archive_running": False, "started_at": "s", "source": "alerts_in_ua",
+                                   "errors": ["poll: ConnectionError('/Users/someone/secret Bearer abc')"]}))
+    monkeypatch.setattr(api, "WORKER_STATUS", status)
+    c, _ = make_client(tmp_path, pd.Timedelta(seconds=5))
+    paths = {r.path for r in c.app.routes}
+    assert paths == {"/health", "/regions", "/forecast", "/forecast/{region:path}", "/quality"}
+    for p in ("/docs", "/redoc", "/openapi.json"):
+        assert c.get(p).status_code == 404
+    h = c.get("/health").json()
+    assert set(h["worker"]) == {"last_poll", "last_archive", "archive_running", "recent_errors"}
+    assert h["worker"]["recent_errors"] == 1
+    body = "".join(c.get(p).text for p in ("/health", "/regions", "/forecast", "/quality",
+                                            "/forecast/" + quote(BUCHA)))
+    for bad in ("/Users/", "/private/", ".sqlite", ".parquet", ".joblib", "data/raw", "data/live",
+                "Bearer", "token", "Traceback"):
+        assert bad not in body, bad

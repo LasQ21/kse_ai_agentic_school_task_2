@@ -55,7 +55,9 @@ def _item(r) -> dict:
 
 
 def create_app(forecaster: Forecaster | None = None) -> FastAPI:
-    app = FastAPI(title="Прогноз повітряних тривог", description=DISCLAIMER)
+    # Публічно — лише прогнози, якість і health: без /docs, /redoc, /openapi.json.
+    app = FastAPI(title="Прогноз повітряних тривог", description=DISCLAIMER,
+                  docs_url=None, redoc_url=None, openapi_url=None)
     # Сайт (Vercel) живе на іншому домені. Дані публічні й лише для читання: GET без credentials.
     origins = [o.strip() for o in os.environ.get("CORS_ALLOW_ORIGINS", "*").split(",") if o.strip()]
     app.add_middleware(CORSMiddleware, allow_origins=origins, allow_methods=["GET"],
@@ -89,7 +91,12 @@ def create_app(forecaster: Forecaster | None = None) -> FastAPI:
     def health():
         f = fc()
         as_of, last, age, stale = f.status(pd.Timestamp.now(tz="UTC"))
-        worker = json.loads(WORKER_STATUS.read_text()) if WORKER_STATUS.exists() else None
+        worker = None
+        if WORKER_STATUS.exists():
+            w = json.loads(WORKER_STATUS.read_text())
+            # Лише безпечні поля: тексти помилок можуть містити адреси й шляхи — віддаємо тільки кількість.
+            worker = {"last_poll": w.get("last_poll"), "last_archive": w.get("last_archive"),
+                      "archive_running": w.get("archive_running"), "recent_errors": len(w.get("errors") or [])}
         meta = f.meta
         return {"status": "degraded" if stale else "ok",
                 "data": {"last_update": _iso(last), "age_s": _num(age), "stale": stale},
