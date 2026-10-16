@@ -20,12 +20,13 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from src.data import PROCESSED_DIR  # noqa: E402
 from src.evaluate import metrics  # noqa: E402
-from src.features import FEATURES_LOGREG, WESTERN_OBLASTS  # noqa: E402
+from src.features import WESTERN_OBLASTS  # noqa: E402
 from src.models import (GBM_GRID, LOGREG_C, Calibrator, Climate, ClimateWave,  # noqa: E402
-                        choose_calibration, gbm_features, make_gbm, make_logreg)
+                        choose_calibration, make_logreg)
 from src.split import _ts  # noqa: E402
-from src.state_models import (FEATURES_B_LOGREG, MedianRule, SurvivalTable, add_state_derived,  # noqa: E402
-                              ece, gbm_b_features, make_gbm_b, make_logreg_b, monotone_cont)
+from src.state_models import (FEATURES_A_LOGREG, FEATURES_B_LOGREG, MedianRule, SurvivalTable, add_state_derived,  # noqa: E402
+                              ece, gbm_a_features, gbm_b_features, make_gbm_a, make_gbm_b,
+                              make_logreg_b, monotone_cont)
 from src.state_targets import MAX_EPISODE, SPLIT_STATE, STATE_HORIZONS  # noqa: E402
 
 log = logging.getLogger("train_state")
@@ -88,7 +89,7 @@ def main():
     trA, vaA = A[A.split_S == "train"], A[A.split_S == "val"]
     y_tr, y_va = trA.y_start_24.to_numpy(int), vaA.y_start_24.to_numpy(int)
     clim = Climate().fit(trA, y_tr)
-    mA, selA = fit_families(trA, vaA, y_tr, y_va, gbm_features, make_gbm, FEATURES_LOGREG, make_logreg, "A24")
+    mA, selA = fit_families(trA, vaA, y_tr, y_va, gbm_a_features, make_gbm_a, FEATURES_A_LOGREG, make_logreg, "A24")
     ll = {k: nonwest_logloss(mA, vaA, y_va, k) for k in ("gbm", "logreg")}
     family_A = min(ll, key=lambda k: ll[k][0])
     p_raw = ll[family_A][1]

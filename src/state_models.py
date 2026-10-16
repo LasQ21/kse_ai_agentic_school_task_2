@@ -18,8 +18,12 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 
+from src.features import FEATURES_GBM, FEATURES_LOGREG
 from src.models import CLIMATE_SHRINK, SEED
 
+# Стан A: ознаки старої моделі без active і active_elapsed_h (у стані A вони константні / порожні).
+FEATURES_A_GBM = [f for f in FEATURES_GBM if f not in ("active", "active_elapsed_h")]
+FEATURES_A_LOGREG = [f for f in FEATURES_LOGREG if f != "active"]
 FEATURES_B_GBM = [
     "unit_code", "active_elapsed_h", "hour", "dow", "oblasts_active_now", "country_active_other",
     "same_oblast_active_share", "neighbors_active_share", "neighbors_any_active", "prev_dur_last_h",
@@ -40,6 +44,20 @@ def add_state_derived(df: pd.DataFrame) -> pd.DataFrame:
         src = "active_elapsed_h" if c == "elapsed_h" else c
         df[f"log_{c}"] = np.log1p(df[src])
     return df
+
+
+def gbm_a_features(use_unit: bool) -> list[str]:
+    """Ознаки GBM для стану A, H = 24; без unit_code, якщо use_unit=False."""
+    return FEATURES_A_GBM if use_unit else [f for f in FEATURES_A_GBM if f != "unit_code"]
+
+
+def make_gbm_a(learning_rate, max_iter, max_leaf_nodes, min_samples_leaf=200, l2=1.0, use_unit=True):
+    """Як src.models.make_gbm, але з ознаками стану A."""
+    cat = [f == "unit_code" for f in gbm_a_features(use_unit)]
+    return HistGradientBoostingClassifier(
+        learning_rate=learning_rate, max_iter=max_iter, max_leaf_nodes=max_leaf_nodes,
+        min_samples_leaf=min_samples_leaf, l2_regularization=l2, categorical_features=cat,
+        early_stopping=False, random_state=SEED)
 
 
 def gbm_b_features(use_unit: bool) -> list[str]:
@@ -183,7 +201,7 @@ def state_service_predict(df: pd.DataFrame, state: dict, old_models: dict) -> di
     """
     from src.features import WESTERN_OBLASTS
     from src.models import service_predict
-    start, west = service_predict(df, old_models)
+    start, _ = service_predict(df, old_models)
     west = df.oblast.isin(WESTERN_OBLASTS).to_numpy()
     a = state["A24"]
     p24 = np.where(west, a["climate"].predict(df), a["cal"].predict(predict_family(a, df, state["family_A"])))
