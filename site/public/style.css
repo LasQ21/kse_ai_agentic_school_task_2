@@ -35,6 +35,9 @@ body {
 .state-sub { margin: 8px 0 0; color: var(--muted); max-width: 70ch; }
 .state.down .state-line { color: var(--ink); }
 
+.snapshot { background: #fde68a; color: #3a2a00; border-bottom: 3px solid #b45309; }
+.snapshot p { max-width: 880px; margin: 0 auto; padding: 14px 16px; font-size: clamp(1.05rem, 2.6vw, 1.3rem); font-weight: 700; }
+.snapshot span { display: block; font-weight: 500; font-size: 0.95rem; }
 .banner {
   display: flex; gap: 12px; align-items: flex-start;
   margin: 12px 0 4px; padding: 14px 16px; border-radius: 6px;

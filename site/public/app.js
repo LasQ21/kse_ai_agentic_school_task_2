@@ -2,7 +2,9 @@
 // середовища API_BASE_URL на Vercel). Токенів тут немає.
 (function () {
   "use strict";
-  const API = ((window.APP_CONFIG || {}).apiBase || "").replace(/\/+$/, "");
+  const CFG = window.APP_CONFIG || {};
+  const MODE = CFG.mode || (CFG.apiBase ? "live" : "none");   // live | snapshot | none
+  const API = (CFG.apiBase || "").replace(/\/+$/, "");
   const REFRESH_MS = 2 * 60 * 1000;
   const TIMEOUT_MS = 12000;
   const KYIV = new Intl.DateTimeFormat("uk-UA", { timeZone: "Europe/Kyiv", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" });
@@ -62,7 +64,11 @@
     const s = $("state");
     s.className = "state";
     s.replaceChildren(
-      d.stale
+      MODE === "snapshot"
+        ? el("p", { class: "state-line" },
+            "На момент знімка тривога була у ", el("b", { text: String(active) }),
+            ` з ${d.items.length} районів і міст. Дані тоді були оновлені `, el("b", { text: ago(d.data_age_s).replace(" тому", " до знімка") }), ".")
+        : d.stale
         ? el("p", { class: "state-line" },
             `Станом на ${KYIV.format(new Date(d.as_of))} тривога була у `, el("b", { text: String(active) }),
             ` з ${d.items.length} районів і міст. Що зараз — невідомо: дані оновлено `, el("b", { text: ago(d.data_age_s) }), ".")
@@ -70,7 +76,7 @@
             "Тривога зараз у ", el("b", { text: String(active) }), ` з ${d.items.length} районів і міст. `,
             "Дані оновлено ", el("b", { text: ago(d.data_age_s) }), "."),
       el("p", { class: "state-sub", text:
-        `Прогноз станом на ${KYIV.format(new Date(d.as_of))} (Київ). Джерело живих даних — alerts.in.ua; ` +
+        `Прогноз станом на ${KYIV.format(new Date(d.as_of))} (Київ). Джерело даних — alerts.in.ua; ` +
         "визначення тривоги там інше, ніж у навчанні моделі." })
     );
     const b = $("stale");
@@ -117,7 +123,8 @@
       const body = el("tbody");
       for (const it of rows) {
         const name = el("th", { scope: "row" }, it.raion || "вся область",
-          it.active_now ? el("span", { class: "now", text: staleNow ? "тривога на момент оновлення" : "тривога зараз" }) : null);
+          it.active_now ? el("span", { class: "now", text: MODE === "snapshot" ? "тривога на момент знімка"
+            : staleNow ? "тривога на момент оновлення" : "тривога зараз" }) : null);
         body.append(el("tr", {}, name, riskCell(it.probabilities["1"]), riskCell(it.probabilities["3"]), riskCell(it.probabilities["6"])));
       }
       list.append(el("div", { class: "oblast" + (climate ? " climate" : "") }, el("table", {}, cap, head, body)));
@@ -161,6 +168,37 @@
 
   let lastForecast = null;
 
+  function showSnapshotBanner(snap) {
+    const utc = new Intl.DateTimeFormat("uk-UA", { timeZone: "UTC", day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" });
+    const kyiv = new Intl.DateTimeFormat("uk-UA", { timeZone: "Europe/Kyiv", day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" });
+    const t = new Date(snap.snapshot_at_utc);
+    const b = $("snapshot");
+    b.replaceChildren(el("p", {}, `Знімок на ${kyiv.format(t)} (Київ). Не живі дані.`,
+      el("span", { text: `${utc.format(t)} UTC. Сторінка не оновлюється: це збережений стан прогнозу на той момент, ` +
+        "а не поточна ситуація. Орієнтуйтесь на офіційні сигнали." })));
+    b.hidden = false;
+  }
+
+  async function loadSnapshot() {
+    try {
+      const r = await fetch(CFG.snapshot || "snapshot.json", { cache: "no-store" });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const snap = await r.json();
+      if (snap.kind !== "snapshot") throw new Error("невідомий формат");
+      showSnapshotBanner(snap);
+      lastForecast = snap;
+      staleNow = !!snap.stale;
+      renderState(snap);
+      renderList(snap.items, $("q").value);
+      renderExcluded(snap.excluded);
+      $("forecast").hidden = false;
+      renderQuality(snap.quality);
+      $("updated").textContent = `Знімок зроблено ${KYIV.format(new Date(snap.snapshot_at_utc))} (Київ). Сторінка не оновлюється автоматично.`;
+    } catch (e) {
+      unavailable(`Не вдалося прочитати знімок прогнозу (${e.message}).`);
+    }
+  }
+
   async function refresh() {
     if (!API) { unavailable("Сервер прогнозу ще не розгорнуто: адресу API не налаштовано."); return; }
     try {
@@ -179,6 +217,10 @@
   }
 
   $("q").addEventListener("input", () => { if (lastForecast) renderList(lastForecast.items, $("q").value); });
-  refresh();
-  setInterval(refresh, REFRESH_MS);
+  if (MODE === "snapshot") {
+    loadSnapshot();
+  } else {
+    refresh();
+    setInterval(refresh, REFRESH_MS);
+  }
 })();
