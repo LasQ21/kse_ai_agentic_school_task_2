@@ -17,12 +17,11 @@ import pandas as pd
 
 from src.data import KYIV_CITY, OBLAST_AS_UNIT, clean_events, hromada_events, load_vadimkin
 from src.features import WESTERN_OBLASTS, add_derived, compute_features
+from src.features import FEATURES_LOGREG
 from src.models import Calibrator, Climate, ClimateWave, gbm_features, make_gbm, make_logreg
 from src.split import HORIZONS, SPLITS, assign_split, build_label_grid
 from src.state_features import add_state_features
-from src.state_models import (FEATURES_A_LOGREG, FEATURES_B_LOGREG, MedianRule, SurvivalTable,
-                              add_state_derived, gbm_a_features, gbm_b_features, make_gbm_a, make_gbm_b,
-                              make_logreg_b)
+from src.state_models import gbm_q_features, make_gbm_q
 from src.state_targets import STATE_HORIZONS, build_state_labels
 
 UNITS = json.loads((Path(__file__).parent / "fixtures" / "units.json").read_text())
@@ -51,16 +50,17 @@ def raw_events(seed: int = 0) -> pd.DataFrame:
             o, r = u.split("|")
             if rng.random() < rate[o] * (6 if wave else 1):
                 start = t + pd.Timedelta(seconds=int(rng.integers(0, 3600)))
-                # рідкі довгі тривоги (≥ 25 год), щоб мітка «триває ще 24 год» мала обидва класи
-                minutes = int(rng.integers(1500, 2400)) if rng.random() < 0.01 else int(rng.integers(10, 180))
-                if o == KYIV_CITY:
-                    add(o, None, None, "oblast", start, minutes)
-                elif o in OBLAST_AS_UNIT:
-                    add(o, None, None, "oblast", start, minutes)
-                elif rng.random() < 0.1:
-                    add(o, r, f"громада {r}", "hromada", start, minutes)
-                else:
-                    add(o, r, None, "raion", start, minutes)
+                # 15%: дві короткі тривоги одна за одною (перерва 3 хв), щоб лічильник 2+ мав приклади
+                pair = rng.random() < 0.15
+                minutes = int(rng.integers(5, 15)) if pair else int(rng.integers(10, 180))
+                starts = [start, start + pd.Timedelta(minutes=minutes + 3)] if pair else [start]
+                for s0 in starts:
+                    if o in OBLAST_AS_UNIT | {KYIV_CITY}:
+                        add(o, None, None, "oblast", s0, minutes)
+                    elif rng.random() < 0.1:
+                        add(o, r, f"громада {r}", "hromada", s0, minutes)
+                    else:
+                        add(o, r, None, "raion", s0, minutes)
     # Кожен район має хоч одну районну подію: офлайн перелік районів для обласних тривог береться
     # з даних, а сервіс — з переліку одиниць; так вони збігаються.
     for u in UNITS:
@@ -117,31 +117,29 @@ def build(root: Path, seed: int = 0) -> dict:
 
 
 def build_state(root: Path, ev: pd.DataFrame, coverage: dict, D: pd.DataFrame):
-    """Цілі за станом на зразку тим самим шляхом (src.state_targets / src.state_features) і
-    невелика модель станів тієї ж структури, що й scripts/train_state.py (GBM, Platt)."""
+    """Цілі для бота на зразку тим самим шляхом (src.state_targets / src.state_features) і
+    невелика модель тієї ж структури, що й scripts/train_state.py (GBM, Platt)."""
     L, _ = build_state_labels(ev, coverage)
     X = L.merge(D.drop(columns=["segment", "split_V"]), on=["unit", "t"], how="left", validate="1:1")
-    X = add_state_derived(add_state_features(X, ev))
+    X = add_state_features(X, ev)
     path = root / "processed" / "dataset_state.parquet"
     X.to_parquet(path, index=False)
     K = X[X.keep]
-    A, B = K[K.state == "A"], K[K.state == "B"]
-    trA, vaA, trB, vaB = (d[d.split_S == p] for d in (A, B) for p in ("train", "val"))
-    durs = pd.DataFrame({"oblast": ev.oblast, "duration_h": (ev.finished_at - ev.started_at).dt.total_seconds() / 3600})
+    tr, va = K[K.split_S == "train"], K[K.split_S == "val"]
 
-    def fam(tr, va, y, feats_gbm, make_gbm_fn, feats_lr, make_lr_fn):
-        g = make_gbm_fn(**GBM_PARAMS).fit(tr[feats_gbm], tr[y].astype(int))
-        cal = Calibrator("platt").fit(g.predict_proba(va[feats_gbm])[:, 1], va[y].astype(int))
-        lr = make_lr_fn(1.0).fit(tr[feats_lr], tr[y].astype(int))
-        return {"gbm": g, "gbm_features": feats_gbm, "logreg": lr, "logreg_features": feats_lr, "cal": cal,
-                "climate": Climate().fit(tr, tr[y].astype(int))}
+    def fam(tr, va, y_tr, y_va, feats_gbm, make_gbm_fn):
+        g = make_gbm_fn(**GBM_PARAMS).fit(tr[feats_gbm], y_tr)
+        return {"gbm": g, "gbm_features": feats_gbm, "logreg": make_logreg(1.0).fit(tr[FEATURES_LOGREG], y_tr),
+                "logreg_features": FEATURES_LOGREG, "climate": Climate().fit(tr, y_tr),
+                "cal": Calibrator("platt").fit(g.predict_proba(va[feats_gbm])[:, 1], y_va)}
 
-    a24 = fam(trA, vaA, "y_start_24", gbm_a_features(True), make_gbm_a, FEATURES_A_LOGREG, make_logreg)
-    a24["climate_wave"] = ClimateWave(a24["climate"]).fit(trA, trA.y_start_24.astype(int))
-    b = {}
+    any24 = fam(tr, va, tr.y_new_24, va.y_new_24, gbm_features(True), make_gbm)
+    any24["climate_wave"] = ClimateWave(any24["climate"]).fit(tr, tr.y_new_24)
+    q = {}
     for h in STATE_HORIZONS:
-        b[h] = fam(trB, vaB, f"y_cont_{h}", gbm_b_features(True), make_gbm_b, FEATURES_B_LOGREG, make_logreg_b)
-        b[h].update(survival=SurvivalTable().fit(trB, trB[f"y_cont_{h}"]), median_rule=MedianRule(h).fit(durs))
+        a, b = tr[tr[f"n_new_{h}"] >= 1], va[va[f"n_new_{h}"] >= 1]
+        q[h] = fam(a, b, (a[f"n_new_{h}"] >= 2).astype(int), (b[f"n_new_{h}"] >= 2).astype(int),
+                   gbm_q_features(True), make_gbm_q)
     model = root / "models" / "state_models.joblib"
-    joblib.dump({"A24": a24, "B": b, "family_A": "gbm", "family_B": "gbm", "meta": {"sample": True}}, model)
+    joblib.dump({"any24": any24, "q": q, "family_any24": "gbm", "family_q": "gbm", "meta": {"sample": True}}, model)
     return path, model

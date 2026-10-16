@@ -1,11 +1,12 @@
-"""Прогноз для сервісу: predict(region, now) -> {H: ймовірність} для поточного стану одиниці.
+"""Прогноз для сервісу: predict(region, now) -> {H: P(почнеться нова тривога в (now, now + H])}.
 
-Стан A (тривоги немає): P(старт нової тривоги за 1 / 3 / 6 / 24 год). Стан B (тривога йде):
-P(тривога триватиме ще щонайменше 1 / 3 / 6 / 24 год). Використовує ті самі функції, що й
-навчання: src.data.clean_events / hromada_events, src.features.compute_features / add_derived,
-src.state_features.add_state_features, src.models.service_predict, src.state_models.
-state_service_predict. На вхід — сирі події (EVENT_COLS) від будь-якого провайдера; усе, що не
-раніше now, відкидається ще до ознак.
+Стан у now (A — тривоги немає, B — тривога йде, з пройденим часом) повертається окремо; якщо
+тривога йде, нова можлива лише після відбою. З моделлю для бота (models/state_models.joblib) —
+H = 1 / 3 / 6 / 24 і лічильник P(0) / P(1) / P(2+) нових тривог; без неї — лише 1 / 3 / 6.
+Використовує ті самі функції, що й навчання: src.data.clean_events / hromada_events,
+src.features.compute_features / add_derived, src.state_features.add_state_features,
+src.models.service_predict, src.state_models.bot_predict. На вхід — сирі події (EVENT_COLS) від
+будь-якого провайдера; усе, що не раніше now, відкидається ще до ознак.
 """
 from __future__ import annotations
 
@@ -22,7 +23,7 @@ from src.data import (EXCLUDED_OBLASTS, KYIV_CITY, OBLAST_AS_UNIT, ROOT, clean_e
 from src.features import CAP_H, COUNT_WINDOWS_H, WESTERN_OBLASTS, add_derived, compute_features
 from src.models import service_predict
 from src.state_features import DUR_WINDOW, add_state_features
-from src.state_models import add_state_derived, state_service_predict
+from src.state_models import bot_predict
 
 SERVICE_MODEL = ROOT / "models" / "service_model.joblib"
 STATE_MODEL = ROOT / "models" / "state_models.joblib"
@@ -65,7 +66,7 @@ class Forecast:
     region: str
     requested_for: pd.Timestamp     # на коли просили
     as_of: pd.Timestamp             # станом на коли реально пораховано (= останнє оновлення, якщо stale)
-    probabilities: dict[int, float]  # A: P(старт у (as_of, as_of + H]); B: P(відбою немає до as_of + H)
+    probabilities: dict[int, float]  # P(нова тривога почнеться в (as_of, as_of + H])
     active_now: bool                # активна станом на as_of
     model: str                      # стара модель старту 1/3/6: "gbm" або "climate"
     data_last_update: pd.Timestamp | None
@@ -73,8 +74,8 @@ class Forecast:
     stale: bool
     state: str = "A"                # "A" — тривоги немає, "B" — тривога йде
     elapsed_h: float | None = None  # скільки триває поточна тривога (лише B)
-    mode: str = ""                  # режим моделі для поточного стану: "climate", "gbm", "logreg", ...
-    start_probabilities: dict[int, float] | None = None   # P(старт) незалежно від стану
+    mode: str = ""                  # режим моделі: "climate" (захід) або сімейства для 1–6 / 24 год
+    counts: dict[str, dict[int, float]] | None = None   # {"p0" | "p1" | "p2plus": {H: p}}
 
 
 class Forecaster:
@@ -85,7 +86,7 @@ class Forecaster:
                  state_bundle: dict | None = None):
         self.raw_events_fn = raw_events_fn
         self.bundle = bundle or load_service_model()
-        # Модель станів (scripts/train_state.py). Без неї — лише старий прогноз старту 1/3/6.
+        # Модель для бота (scripts/train_state.py). Без неї — лише старий прогноз 1/3/6.
         self.state = state_bundle or (load_service_model(STATE_MODEL) if STATE_MODEL.exists() else None)
         self.models, self.meta = self.bundle["models"], self.bundle["meta"]
         self.units = self.meta["units"]
@@ -129,28 +130,29 @@ class Forecaster:
         ev, _ = clean_events(raw, now - LOOKBACK, now, raions_from_units(self.units))
         hrom = hromada_events(raw, now - LOOKBACK, now)
         F = compute_features(ev, hrom, self.units, pd.DatetimeIndex([now]))
-        return add_state_derived(add_state_features(add_derived(F, self.units), ev))
+        return add_state_features(add_derived(F, self.units), ev)
 
     def predict_all(self, now) -> pd.DataFrame:
-        """Для всіх одиниць у момент now: p_1, p_3, p_6 і model (стара модель старту, без змін);
-        з моделлю станів ще state, elapsed_h, p_start_{1,3,6,24}, p_cont_{1,3,6,24}, mode."""
+        """Для всіх одиниць у момент now: p_1, p_3, p_6 і model (стара модель, без змін), state,
+        elapsed_h; з моделлю для бота ще p_any_{1,3,6,24}, p0_/p1_/p2plus_{1,3,6,24}, mode."""
         F = self.feature_frame(now)
         preds, west = service_predict(F, self.models)
         out = F[["unit", "oblast", "t", "active"]].copy()
         for h, p in preds.items():
             out[f"p_{h}"] = p
         out["model"] = np.where(west, "climate", "gbm")
+        b = F.active.to_numpy().astype(bool)
+        out["state"] = np.where(b, "B", "A")
+        out["elapsed_h"] = np.where(b, F.active_elapsed_h, np.nan)
+        out["mode"] = out.model
         if self.state is not None:
-            sp = state_service_predict(F, self.state, self.models)
+            bp = bot_predict(F, self.state, self.models)
             for h in HORIZONS_BOT:
-                out[f"p_start_{h}"] = sp["start"][h]
-                out[f"p_cont_{h}"] = sp["cont"][h]
-            b = F.active.to_numpy().astype(bool)
-            out["state"] = np.where(b, "B", "A")
-            out["elapsed_h"] = np.where(b, F.active_elapsed_h, np.nan)
-            fa, fb = self.state["family_A"], self.state["family_B"]
-            mode_a = "gbm" if fa == "gbm" else f"gbm (1–6 год), {fa} (24 год)"
-            out["mode"] = np.where(west, "climate", np.where(b, fb, mode_a))
+                out[f"p_any_{h}"] = bp["any"][h]
+                for k in ("p0", "p1", "p2plus"):
+                    out[f"{k}_{h}"] = bp[k][h]
+            f24 = self.state["family_any24"]
+            out["mode"] = np.where(west, "climate", "gbm" if f24 == "gbm" else f"gbm (1–6 год), {f24} (24 год)")
         return out
 
     def forecast(self, region: str, now) -> Forecast:
@@ -164,15 +166,11 @@ class Forecaster:
         old = {h: float(row[f"p_{h}"]) for h in sorted(self.models)}
         f = Forecast(region=unit, requested_for=_utc(now), as_of=as_of, probabilities=old,
                      active_now=bool(row.active), model=row.model, data_last_update=last,
-                     data_age_s=age, stale=stale, mode=row.model)
+                     data_age_s=age, stale=stale, state=row.state, mode=row["mode"],
+                     elapsed_h=None if row.state == "A" else float(row.elapsed_h))
         if self.state is not None:
-            f.state, f.mode = row.state, row["mode"]
-            f.start_probabilities = {h: float(row[f"p_start_{h}"]) for h in HORIZONS_BOT}
-            if row.state == "B":
-                f.elapsed_h = float(row.elapsed_h)
-                f.probabilities = {h: float(row[f"p_cont_{h}"]) for h in HORIZONS_BOT}
-            else:
-                f.probabilities = dict(f.start_probabilities)
+            f.probabilities = {h: float(row[f"p_any_{h}"]) for h in HORIZONS_BOT}
+            f.counts = {k: {h: float(row[f"{k}_{h}"]) for h in HORIZONS_BOT} for k in ("p0", "p1", "p2plus")}
         return f
 
     def forecast_many(self, now) -> tuple[list[Forecast], dict]:

@@ -45,11 +45,10 @@ def test_predict_api_matches_predict_all(setup):
     allp = fc.predict_all(t).set_index("unit")
     for unit in ["Харківська область|Харківський район", "Львівська область|Львівський район", "м. Київ|*"]:
         p = fc.predict(unit, t)
-        col = "p_cont" if allp.loc[unit, "state"] == "B" else "p_start"
-        assert p == {h: pytest.approx(allp.loc[unit, f"{col}_{h}"]) for h in (1, 3, 6, 24)}
-        assert (p[1] >= p[3] >= p[6] >= p[24]) if col == "p_cont" else (p[1] <= p[3] <= p[6] <= p[24])
+        assert p == {h: pytest.approx(allp.loc[unit, f"p_any_{h}"]) for h in (1, 3, 6, 24)}
+        assert p[1] <= p[3] <= p[6] <= p[24]
         old = allp.loc[unit, ["p_1", "p_3", "p_6"]].to_numpy(float)
-        assert np.allclose(old, allp.loc[unit, ["p_start_1", "p_start_3", "p_start_6"]].to_numpy(float))
+        assert np.array_equal(old, allp.loc[unit, ["p_any_1", "p_any_3", "p_any_6"]].to_numpy(float))
     assert fc.forecast("Львівська область|Львівський район", t).model == "climate"
     assert fc.forecast("Харківська область|Харківський район", t).model == "gbm"
 
@@ -92,23 +91,22 @@ def state_setup(artifacts):
 
 
 def test_state_features_and_predictions_match_offline(state_setup):
-    """Ознаки станів і прогнози A (24 год) / B (1–24 год) сервісу = офлайн-таблиця dataset_state."""
-    from src.state_features import STATE_FEATURES
-    from src.state_models import FEATURES_B_GBM, add_state_derived, state_service_predict
+    """Ознаки бота й прогнози (P(≥1) на 1–24 год, лічильник) сервісу = офлайн-таблиця dataset_state."""
+    from src.state_models import FEATURES_Q_GBM, bot_predict
     X, times, S, old, fc = state_setup
     n_b = 0
     for t in times:
         live = fc.feature_frame(t).set_index("unit").sort_index()
-        off = add_state_derived(X[X.t == t]).set_index("unit").sort_index()
+        off = X[X.t == t].set_index("unit").sort_index()
         assert list(live.index) == list(off.index)
         assert ((off.state == "B") == (live.active == 1)).all()
         n_b += int((off.state == "B").sum())
-        for f in sorted(set(STATE_FEATURES + FEATURES_B_GBM + ["log_prev_dur_med10_h", "log_elapsed_h"])):
+        for f in FEATURES_Q_GBM:
             a, b = live[f].to_numpy(float), off[f].to_numpy(float)
             assert np.allclose(a, b, equal_nan=True), (t, f)
-        p_off = state_service_predict(off.reset_index(), S, old)
+        p_off = bot_predict(off.reset_index(), S, old)
         allp = fc.predict_all(t).set_index("unit").sort_index()
         for h in (1, 3, 6, 24):
-            assert np.allclose(allp[f"p_start_{h}"], p_off["start"][h], atol=1e-12), (t, h)
-            assert np.allclose(allp[f"p_cont_{h}"], p_off["cont"][h], atol=1e-12), (t, h)
+            for k, col in (("any", "p_any"), ("p0", "p0"), ("p1", "p1"), ("p2plus", "p2plus")):
+                assert np.allclose(allp[f"{col}_{h}"], p_off[k][h], atol=1e-12), (t, h, k)
     assert n_b > 0

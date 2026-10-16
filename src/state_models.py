@@ -1,10 +1,16 @@
-"""Моделі й бази для цілей за станом (A: старт за 24 год; B: тривога триває ще h год).
+"""Моделі для бота: P(нова тривога за 24 год) і лічильник P(0) / P(1) / P(2+) нових тривог за h год.
 
-Старі моделі (src/models.py, models/*.joblib) тут не змінюються й не перенавчаються.
-Правило вибору для сервісу зафіксоване до оцінки test і зовнішньої перевірки (scripts/train_state.py):
-- гіперпараметри GBM / C логістичної регресії — за log loss на validation;
-- сімейство (GBM чи лог. регресія) — одне на стан, за сумарним log loss на validation серед
-  незахідних областей (для B — сума по h ∈ {1, 3, 6, 24});
+Старі моделі (src/models.py, models/models.joblib, models/service_model.joblib) не змінюються й не
+перенавчаються: P(нова тривога за 1 / 3 / 6 год) береться з них як є.
+
+Лічильник будується так, щоб не суперечити основній ймовірності:
+  P(0) = 1 − P(≥1),  P(2+) = P(≥1) · q_h,  P(1) = P(≥1) − P(2+),
+де q_h = P(≥2 нових | ≥1 нової) — окрема модель, навчена на рядках з хоча б одним стартом.
+
+Правило вибору зафіксоване до оцінки test і зовнішньої перевірки (scripts/train_state.py):
+- гіперпараметри GBM / C лог. регресії — за log loss на validation;
+- сімейство (GBM чи лог. регресія) — окремо для P(≥1, 24 год) і для q (одне на всі h), за log
+  loss на validation серед незахідних областей;
 - калібрування — choose_calibration на validation;
 - захід — клімат (базовий кліматичний рівень).
 """
@@ -13,147 +19,73 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 from sklearn.ensemble import HistGradientBoostingClassifier
-from sklearn.impute import SimpleImputer
-from sklearn.linear_model import LogisticRegression
-from sklearn.pipeline import make_pipeline
-from sklearn.preprocessing import StandardScaler
 
-from src.features import FEATURES_GBM, FEATURES_LOGREG
-from src.models import CLIMATE_SHRINK, SEED
+from src.features import FEATURES_GBM, WESTERN_OBLASTS
+from src.models import SEED
+from src.state_features import STATE_FEATURES
 
-# Стан A: ознаки старої моделі без active і active_elapsed_h (у стані A вони константні / порожні).
-FEATURES_A_GBM = [f for f in FEATURES_GBM if f not in ("active", "active_elapsed_h")]
-FEATURES_A_LOGREG = [f for f in FEATURES_LOGREG if f != "active"]
-FEATURES_B_GBM = [
-    "unit_code", "active_elapsed_h", "hour", "dow", "oblasts_active_now", "country_active_other",
-    "same_oblast_active_share", "neighbors_active_share", "neighbors_any_active", "prev_dur_last_h",
-    "prev_dur_med10_h", "prev_n_ended_30d", "elapsed_over_med", "starts_24h", "starts_168h",
-]
-FEATURES_B_LOGREG = [
-    "hour_sin", "hour_cos", "dow_sin", "dow_cos", "log_elapsed_h", "log_prev_dur_last_h",
-    "log_prev_dur_med10_h", "log_prev_n_ended_30d", "log_elapsed_over_med", "oblasts_active_now",
-    "country_active_other", "neighbors_active_share",
-]
-ELAPSED_BINS_H = [0, 0.25, 0.5, 1, 1.5, 2, 3, 4, 6, 9, 12, 18, 24, 48, 96, np.inf]
+# q_h: ознаки старої моделі + тривалості попередніх тривог і кількість областей під тривогою.
+FEATURES_Q_GBM = FEATURES_GBM + STATE_FEATURES
 
 
-def add_state_derived(df: pd.DataFrame) -> pd.DataFrame:
-    """log1p-перетворення для лог. регресії стану B (NaN лишаються NaN -> імпутація в пайплайні)."""
-    df = df.copy()
-    for c in ("elapsed_h", "prev_dur_last_h", "prev_dur_med10_h", "prev_n_ended_30d", "elapsed_over_med"):
-        src = "active_elapsed_h" if c == "elapsed_h" else c
-        df[f"log_{c}"] = np.log1p(df[src])
-    return df
+def gbm_q_features(use_unit: bool) -> list[str]:
+    """Ознаки GBM для q_h; без unit_code, якщо use_unit=False."""
+    return FEATURES_Q_GBM if use_unit else [f for f in FEATURES_Q_GBM if f != "unit_code"]
 
 
-def gbm_a_features(use_unit: bool) -> list[str]:
-    """Ознаки GBM для стану A, H = 24; без unit_code, якщо use_unit=False."""
-    return FEATURES_A_GBM if use_unit else [f for f in FEATURES_A_GBM if f != "unit_code"]
-
-
-def make_gbm_a(learning_rate, max_iter, max_leaf_nodes, min_samples_leaf=200, l2=1.0, use_unit=True):
-    """Як src.models.make_gbm, але з ознаками стану A."""
-    cat = [f == "unit_code" for f in gbm_a_features(use_unit)]
+def make_gbm_q(learning_rate, max_iter, max_leaf_nodes, min_samples_leaf=200, l2=1.0, use_unit=True):
+    """Як src.models.make_gbm, але з ознаками q_h."""
+    cat = [f == "unit_code" for f in gbm_q_features(use_unit)]
     return HistGradientBoostingClassifier(
         learning_rate=learning_rate, max_iter=max_iter, max_leaf_nodes=max_leaf_nodes,
         min_samples_leaf=min_samples_leaf, l2_regularization=l2, categorical_features=cat,
         early_stopping=False, random_state=SEED)
 
 
-def gbm_b_features(use_unit: bool) -> list[str]:
-    """Ознаки GBM для стану B; без unit_code, якщо use_unit=False."""
-    return FEATURES_B_GBM if use_unit else [f for f in FEATURES_B_GBM if f != "unit_code"]
+def predict_family(m: dict, df: pd.DataFrame, kind: str) -> np.ndarray:
+    """Сирий прогноз сімейства kind ('gbm' / 'logreg') із замороженого словника моделей."""
+    if kind == "gbm":
+        return m["gbm"].predict_proba(df[m["gbm_features"]])[:, 1]
+    return m["logreg"].predict_proba(df[m["logreg_features"]])[:, 1]
 
 
-def make_gbm_b(learning_rate, max_iter, max_leaf_nodes, min_samples_leaf=200, l2=1.0, use_unit=True):
-    """Як src.models.make_gbm, але з ознаками стану B."""
-    cat = [f == "unit_code" for f in gbm_b_features(use_unit)]
-    return HistGradientBoostingClassifier(
-        learning_rate=learning_rate, max_iter=max_iter, max_leaf_nodes=max_leaf_nodes,
-        min_samples_leaf=min_samples_leaf, l2_regularization=l2, categorical_features=cat,
-        early_stopping=False, random_state=SEED)
+def counter_from(p_any: dict[int, np.ndarray], q: dict[int, np.ndarray]) -> dict[str, dict[int, np.ndarray]]:
+    """P(0), P(1), P(2+) з P(≥1) (не спадає з h) і q_h. P(2+) робиться неспадним за h
+    (кумулятивний максимум) і не більшим за P(≥1)_h."""
+    hs = sorted(p_any)
+    p2, run = {}, None
+    for h in hs:
+        v = p_any[h] * q[h]
+        run = v if run is None else np.maximum(run, v)
+        p2[h] = np.minimum(run, p_any[h])
+    return {"p0": {h: 1 - p_any[h] for h in hs}, "p1": {h: p_any[h] - p2[h] for h in hs}, "p2plus": p2}
 
 
-def make_logreg_b(C):
-    """Лог. регресія з імпутацією медіаною (і індикатором пропуску) та стандартизацією."""
-    return make_pipeline(SimpleImputer(strategy="median", add_indicator=True), StandardScaler(),
-                         LogisticRegression(C=C, max_iter=2000))
+def bot_predict(df: pd.DataFrame, bot: dict, old_models: dict) -> dict:
+    """Прогноз для бота для всіх рядків df (ознаки з compute_features + add_derived +
+    add_state_features).
 
-
-class SurvivalTable:
-    """Емпірична виживаність: частка «триває ще h» серед train-рядків стану B з тим самим
-    (область, кошик пройденого часу, година), стягнута до (область, кошик) і далі до (кошик)."""
-
-    def _keys(self, df):
-        return df.oblast.to_numpy(), pd.cut(df.active_elapsed_h, ELAPSED_BINS_H, right=False,
-                                            labels=False).to_numpy(), df.hour.to_numpy()
-
-    def fit(self, df, y):
-        o, b, h = self._keys(df)
-        d = pd.DataFrame({"o": o, "b": b, "h": h, "y": np.asarray(y, float)})
-        self.global_ = d.y.mean()
-        g_b = d.groupby("b").y.agg(["sum", "count"])
-        self.p_b = (g_b["sum"] + CLIMATE_SHRINK * self.global_) / (g_b["count"] + CLIMATE_SHRINK)
-        g_ob = d.groupby(["o", "b"]).y.agg(["sum", "count"])
-        prior = g_ob.index.get_level_values("b").map(self.p_b).to_numpy()
-        self.p_ob = (g_ob["sum"] + CLIMATE_SHRINK * prior) / (g_ob["count"] + CLIMATE_SHRINK)
-        g = d.groupby(["o", "b", "h"]).y.agg(["sum", "count"])
-        prior = self.p_ob.reindex(pd.MultiIndex.from_arrays([g.index.get_level_values("o"),
-                                                             g.index.get_level_values("b")])).to_numpy()
-        self.p_obh = (g["sum"] + CLIMATE_SHRINK * prior) / (g["count"] + CLIMATE_SHRINK)
-        return self
-
-    def predict(self, df):
-        o, b, h = self._keys(df)
-        p = self.p_obh.reindex(pd.MultiIndex.from_arrays([o, b, h])).to_numpy()
-        p_ob = self.p_ob.reindex(pd.MultiIndex.from_arrays([o, b])).to_numpy()
-        p_b = pd.Series(b).map(self.p_b).fillna(self.global_).to_numpy()
-        return np.where(np.isnan(p), np.where(np.isnan(p_ob), p_b, p_ob), p)
-
-
-class MedianRule:
-    """«Триватиме до медіани тривалості»: 1, якщо пройдений час + h < медіани тривалості
-    train-епізодів області, інакше 0 (детерміноване правило, не ймовірність)."""
-
-    def __init__(self, h):
-        self.h = h
-
-    def fit(self, durations: pd.DataFrame):
-        """durations: колонки oblast, duration_h (train-епізоди)."""
-        self.med = durations.groupby("oblast").duration_h.median()
-        self.global_ = durations.duration_h.median()
-        return self
-
-    def predict(self, df):
-        m = df.oblast.map(self.med).fillna(self.global_).to_numpy()
-        return (df.active_elapsed_h.to_numpy() + self.h < m).astype(float)
-
-
-def monotone_start(p24: np.ndarray, p6: np.ndarray) -> tuple[np.ndarray, float]:
-    """P(старт за 24 год) ≥ P(старт за 6 год). Повертає виправлене p24 і частку порушень."""
-    return np.maximum(p24, p6), float(np.mean(p24 < p6))
-
-
-def monotone_cont(preds: dict[int, np.ndarray]) -> tuple[dict[int, np.ndarray], dict]:
-    """P(триває ≥ h) не зростає з h: кумулятивний мінімум за зростанням h."""
-    hs = sorted(preds)
-    out, viol = {hs[0]: preds[hs[0]]}, {}
-    for a, b in zip(hs, hs[1:]):
-        viol[f"p{b}>p{a}"] = float(np.mean(preds[b] > out[a]))
-        out[b] = np.minimum(preds[b], out[a])
-    return out, viol
+    Повертає {"any": {1, 3, 6, 24: P(≥1 нової)}, "p0" / "p1" / "p2plus": {h: ...}, "west": маска}.
+    P(≥1) на 1/3/6 — стара модель сервісу (src.models.service_predict) без змін; на 24 — нова
+    (захід — клімат) з умовою P24 ≥ P6.
+    """
+    from src.models import service_predict
+    any_, _ = service_predict(df, old_models)
+    west = df.oblast.isin(WESTERN_OBLASTS).to_numpy()
+    a = bot["any24"]
+    p24 = np.where(west, a["climate"].predict(df), a["cal"].predict(predict_family(a, df, bot["family_any24"])))
+    any_ = {**any_, 24: np.maximum(p24, any_[6])}
+    q = {h: np.where(west, m["climate"].predict(df), m["cal"].predict(predict_family(m, df, bot["family_q"])))
+         for h, m in bot["q"].items()}
+    return {"any": any_, **counter_from(any_, q), "west": west}
 
 
 def ece(y, p, n_bins=10) -> float:
     """Expected calibration error: рівноширокі біни [0, 1], вага — частка рядків у біні."""
     y, p = np.asarray(y, float), np.asarray(p, float)
     b = np.clip((p * n_bins).astype(int), 0, n_bins - 1)
-    tot = 0.0
-    for k in range(n_bins):
-        m = b == k
-        if m.any():
-            tot += m.mean() * abs(p[m].mean() - y[m].mean())
-    return float(tot)
+    return float(sum(np.mean(b == k) * abs(p[b == k].mean() - y[b == k].mean())
+                     for k in range(n_bins) if (b == k).any()))
 
 
 def reliability(y, p, n_bins=10) -> pd.DataFrame:
@@ -163,51 +95,33 @@ def reliability(y, p, n_bins=10) -> pd.DataFrame:
     return d.groupby("bin").agg(mean_pred=("p", "mean"), observed=("y", "mean"), n=("y", "size")).reset_index()
 
 
-def day_bootstrap(t: pd.Series, y: np.ndarray, preds: dict[str, np.ndarray], pairs, n_boot=1000, seed=0) -> dict:
-    """Блочний бутстреп по днях (UTC): 95% CI для Brier кожної моделі й Brier skill пар (a, b)."""
+def counter_loss(n: np.ndarray, P: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Поточкові втрати лічильника: багатокласний Brier (сума по класах 0 / 1 / 2+) і log loss.
+    n — фактична кількість нових тривог, P — (рядки × 3)."""
+    k = np.minimum(np.asarray(n, int), 2)
+    Y = np.eye(3)[k]
+    P = np.clip(P, 1e-6, 1)
+    return ((P - Y) ** 2).sum(1), -np.log(P[np.arange(len(k)), k])
+
+
+def day_bootstrap(t: pd.Series, losses: dict[str, np.ndarray], pairs, n_boot=1000, seed=0) -> dict:
+    """Блочний бутстреп по днях (UTC). losses — поточкові втрати (напр. (p − y)² чи багатокласний
+    Brier). 95% CI для середньої втрати кожної моделі й skill = 1 − L(a) / L(b) для пар (a, b)."""
     rng = np.random.default_rng(seed)
     codes, days = pd.factorize(pd.Series(t).dt.floor("D"))
     nd = len(days)
     idx = rng.integers(0, nd, size=(n_boot, nd))
-    se = {k: np.bincount(codes, weights=(p - y) ** 2, minlength=nd) for k, p in preds.items()}
+    se = {k: np.bincount(codes, weights=v, minlength=nd) for k, v in losses.items()}
     cnt = np.bincount(codes, minlength=nd)
     n_b = cnt[idx].sum(1)
+
+    def q(v):
+        return float(np.quantile(v, .025)), float(np.quantile(v, .975))
     out = {"n_days": nd}
-    for k in preds:
-        b = se[k][idx].sum(1) / n_b
-        out[f"brier_{k}"] = (float(se[k].sum() / cnt.sum()), float(np.quantile(b, .025)), float(np.quantile(b, .975)))
+    for k in losses:
+        out[f"loss_{k}"] = (float(se[k].sum() / cnt.sum()), *q(se[k][idx].sum(1) / n_b))
     for a, b in pairs:
-        s = 1 - se[a][idx].sum(1) / se[b][idx].sum(1)
-        out[f"skill_{a}_vs_{b}"] = (float(1 - se[a].sum() / se[b].sum()), float(np.quantile(s, .025)),
-                                    float(np.quantile(s, .975)))
+        with np.errstate(divide="ignore", invalid="ignore"):
+            s = 1 - se[a][idx].sum(1) / se[b][idx].sum(1)
+        out[f"skill_{a}_vs_{b}"] = (float(1 - se[a].sum() / se[b].sum()), *q(s[np.isfinite(s)]))
     return out
-
-
-def predict_family(m: dict, df: pd.DataFrame, kind: str) -> np.ndarray:
-    """Сирий прогноз сімейства kind ('gbm' / 'logreg') з замороженого словника моделей одного h."""
-    if kind == "gbm":
-        return m["gbm"].predict_proba(df[m["gbm_features"]])[:, 1]
-    return m["logreg"].predict_proba(df[m["logreg_features"]])[:, 1]
-
-
-def state_service_predict(df: pd.DataFrame, state: dict, old_models: dict) -> dict:
-    """Прогноз сервісу для всіх рядків df (ознаки з compute_features + add_derived +
-    add_state_features + add_state_derived).
-
-    Повертає {"start": {1, 3, 6, 24: p}, "cont": {1, 3, 6, 24: p}, "west": маска}. Старт 1/3/6 —
-    стара модель сервісу (src.models.service_predict) без змін; старт 24 — нова модель (захід —
-    клімат) з умовою P24 ≥ P6. Продовження — нова модель (захід — клімат), не зростає з h.
-    Який стан у рядку, вирішує викликач (колонка active).
-    """
-    from src.features import WESTERN_OBLASTS
-    from src.models import service_predict
-    start, _ = service_predict(df, old_models)
-    west = df.oblast.isin(WESTERN_OBLASTS).to_numpy()
-    a = state["A24"]
-    p24 = np.where(west, a["climate"].predict(df), a["cal"].predict(predict_family(a, df, state["family_A"])))
-    start = {**start, 24: monotone_start(p24, start[6])[0]}
-    cont = {}
-    for h, m in state["B"].items():
-        cont[h] = np.where(west, m["climate"].predict(df), m["cal"].predict(predict_family(m, df, state["family_B"])))
-    cont, _ = monotone_cont(cont)
-    return {"start": start, "cont": cont, "west": west}

@@ -1,8 +1,8 @@
-"""Витік для цілей за станом (src/state_targets.py, src/state_features.py).
+"""Витік для цілей бота (src/state_targets.py, src/state_features.py).
 
 - truncation: ознаки в t однакові на повних і обрізаних у t даних (600 випадкових t);
 - ознаки активної тривоги не бачать її кінця після t;
-- мітки суворо по (t, t + h]: перевірка «в лоб» циклом;
+- мітки (стан, y_new_h, n_new_h) суворо по (t, t + h]: перевірка «в лоб» циклом;
 - мутації: протічка в ознаках чи неправильне вікно мітки провалюють ці перевірки;
 - embargo SPLIT_STATE покриває H = 24 і найдовший епізод.
 """
@@ -13,6 +13,7 @@ import pytest
 from src.features import add_derived, compute_features
 from src.split import _ts
 from src.state_features import STATE_FEATURES, _durations_per_unit, add_state_features
+from src.state_models import counter_from
 from src.state_targets import (EMBARGO_STATE, MAX_EPISODE, SPLIT_STATE, STATE_HMAX, STATE_HORIZONS,
                                build_state_labels)
 import src.state_features as sf
@@ -113,19 +114,15 @@ def brute_force_mismatches(L, ev, n=1500, seed=0):
         bad += state != r.state
         for h in STATE_HORIZONS:
             end = r.t + pd.Timedelta(hours=h)
-            if state == "A":
-                y = float(((e.started_at > r.t) & (e.started_at <= end)).any())
-                bad += y != r[f"y_start_{h}"]
-            else:
-                y = float(on.finished_at.max() > end)
-                bad += y != r[f"y_cont_{h}"]
+            n = int(((e.started_at > r.t) & (e.started_at <= end)).sum())
+            bad += (n != r[f"n_new_{h}"]) + (int(n > 0) != r[f"y_new_{h}"])
     return bad
 
 
 def test_labels_brute_force():
     ev = synthetic_events(seed=4)
     L, _ = build_state_labels(ev, coverage_for(ev))
-    assert (L.state == "B").sum() > 500 and L.y_cont_24.sum() > 0
+    assert (L.state == "B").sum() > 500 and (L.n_new_6 >= 2).sum() > 20 and (L.n_new_24 >= 2).sum() > 500
     assert brute_force_mismatches(L, ev) == 0
 
 
@@ -146,7 +143,7 @@ def test_mutation_wrong_label_window_is_caught():
     L, _ = build_state_labels(ev, coverage_for(ev))
     M = L.copy()
     for h, wrong in ((3, 1), (6, 3), (24, 6)):
-        for c in ("y_start", "y_cont"):
+        for c in ("y_new", "n_new"):
             M[f"{c}_{h}"] = L[f"{c}_{wrong}"]
     assert brute_force_mismatches(M, ev) > 0
 
@@ -177,3 +174,18 @@ def test_stuck_and_unknown_end_are_dropped():
         rows = L[(L.unit == r.unit) & (L.t > r.started_at) & (L.t <= r.finished_at)]
         assert len(rows) and (rows.drop_reason == reason).all() and not rows.keep.any()
     assert rep["tail_rows_dropped"] > 0
+
+
+def test_counter_is_consistent_and_monotone():
+    """P(0) + P(1) + P(2+) = 1, P(0) = 1 − P(≥1), усі ≥ 0, P(2+) не спадає з h."""
+    rng = np.random.default_rng(0)
+    p = np.sort(rng.random((1000, 4)), axis=1)
+    any_ = {h: p[:, i] for i, h in enumerate(STATE_HORIZONS)}
+    q = {h: rng.random(1000) for h in STATE_HORIZONS}
+    c = counter_from(any_, q)
+    for i, h in enumerate(STATE_HORIZONS):
+        tot = c["p0"][h] + c["p1"][h] + c["p2plus"][h]
+        assert np.allclose(tot, 1) and np.allclose(c["p0"][h], 1 - any_[h])
+        assert (c["p1"][h] >= -1e-12).all() and (c["p2plus"][h] >= 0).all()
+        if i:
+            assert (c["p2plus"][h] >= c["p2plus"][STATE_HORIZONS[i - 1]] - 1e-12).all()

@@ -1,17 +1,21 @@
-"""Цілі за станом одиниці в момент t (нові; старі мітки y_1/y_3/y_6 і SPLITS не змінюються).
+"""Цілі для бота (нові; старі мітки y_1/y_3/y_6 і SPLITS не змінюються).
 
-Стан A — у t тривоги немає: y_start_h = у (t, t + h] почалася нова тривога, h ∈ {1, 3, 6, 24}.
-Стан B — у t тривога йде: y_cont_h = відбою немає протягом усього (t, t + h], тобто кінець епізоду,
-активного в t, пізніший за t + h. Кінець після t використовується лише тут, у мітці, не в ознаках.
+Для кожної одиниці й години t, у будь-якому стані:
+- y_new_h — у (t, t + h] почалася нова тривога, h ∈ {1, 3, 6, 24} (для 1/3/6 це те саме, що
+  старі y_h; якщо тривога йде в t, нова можлива лише після відбою);
+- n_new_h — кількість нових тривог (стартів після злиття перерв ≤ 60 с) у (t, t + h].
+Стан у t (A — тривоги немає, B — тривога йде) і пройдений час — для показу й ознак; кінець тривоги
+після t в ознаки не потрапляє.
 
 Відкидаються (з лічильниками в звіті):
 - хвіст сегмента: t + 24 год виходить за кінець надійних даних;
 - рядки, чиє вікно (t, t + 24 год] зачіпає «завислу» тривогу (> 96 год, suspect_end);
-- стан B, якщо епізод «завислий» (> 96 год) або його кінець невідомий (обрізаний межею даних).
+- стан B, якщо епізод «завислий» (> 96 год) або його кінець невідомий (обрізаний межею даних):
+  тоді невідомо, коли міг початися наступний.
 
-Розбиття SPLIT_STATE має embargo 97 год між частинами: жоден епізод (≤ 96 год після відкидання
-завислих) не може бути активним і в останньому t однієї частини, і в першому t наступної, а вікно
-мітки (≤ 24 год) не заходить у наступну частину.
+Розбиття SPLIT_STATE має embargo 97 год між частинами: вікно мітки (≤ 24 год) не заходить у
+наступну частину, і жоден епізод (≤ 96 год після відкидання завислих) не може бути активним і в
+останньому t однієї частини, і в першому t наступної.
 """
 from __future__ import annotations
 
@@ -57,7 +61,7 @@ def build_state_labels(events: pd.DataFrame, coverage: dict) -> tuple[pd.DataFra
             st, fn = _ns(e.started_at), _ns(e.finished_at)
             cens, stuck = e.censored.to_numpy(bool), e.suspect_end.to_numpy(bool)
             # Стан — як ознака `active` у src.features: тривога, що почалася до t і не закінчилася
-            # до t (кінець ≥ t ще невідомий у момент t). Кінець рівно в t => B з y_cont_h = 0.
+            # до t (кінець ≥ t ще невідомий у момент t).
             k = np.searchsorted(st, t, side="left") - 1                  # останній старт < t
             kk = np.clip(k, 0, None)
             end_k = np.maximum.accumulate(fn)[kk] if len(st) else np.zeros(len(t), "int64")  # кінець епізоду
@@ -68,10 +72,9 @@ def build_state_labels(events: pd.DataFrame, coverage: dict) -> tuple[pd.DataFra
                    "episode_id": np.where(active, kk, -1)}
             for h in STATE_HORIZONS:
                 hv = pd.Timedelta(hours=h).value
-                hi = np.searchsorted(st, t + hv, side="right")
-                lo = np.searchsorted(st, t, side="right")
-                row[f"y_start_{h}"] = np.where(active, np.nan, ((hi - lo) > 0).astype(float))
-                row[f"y_cont_{h}"] = np.where(active, (end_k > t + hv).astype(float), np.nan)
+                n = np.searchsorted(st, t + hv, side="right") - np.searchsorted(st, t, side="right")
+                row[f"n_new_{h}"] = n
+                row[f"y_new_{h}"] = (n > 0).astype(int)
             reason = np.full(len(t), "", dtype=object)
             if len(suspect):
                 for r in suspect[suspect.unit == unit].itertuples():
