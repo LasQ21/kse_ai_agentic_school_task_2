@@ -1,0 +1,13 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "functions": {
+    "api/webhook.py": {
+      "maxDuration": 60,
+      "excludeFiles": "{tests/**,reports/**,docs/**,site/**,public/**,data/**,scripts/**,.venv/**}"
+    },
+    "api/forecast.py": {
+      "maxDuration": 60,
+      "excludeFiles": "{tests/**,reports/**,docs/**,site/**,public/**,data/**,scripts/**,.venv/**}"
+    }
+  }
+}
