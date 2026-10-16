@@ -119,7 +119,7 @@ def write_summary(timings):
              "Згенеровано `scripts/run_pipeline.py`. **Test не оцінювався** (заморожено після двох оцінок; "
              "див. `model_report.md`).", "",
              "## Вхідні дані", f"- Vadimkin: `{cov['inputs']['vadimkin']}`",
-             f"- знімки alerts.in.ua: {', '.join(cov['inputs']['alerts_in_ua_snapshots'])}",
+             f"- знімки alerts.in.ua: {', '.join(cov['inputs']['alerts_in_ua_archives'])}",
              *[f"- сегмент `{s['source']}`: {s['start']} → {s['end']}" for s in cov["segments"]],
              f"- одиниць: {len(cov['units'])}", "",
              "## Розбиття (варіант В)", "| частина | рядків | t від | t до | y_1 |", "|---|---|---|---|---|"]

@@ -150,15 +150,15 @@ def load_vadimkin(path: Path) -> pd.DataFrame:
     return df[EVENT_COLS]
 
 
-def load_alerts_in_ua(snapshot_dirs: list[Path]) -> tuple[pd.DataFrame, pd.Timestamp, pd.Timestamp]:
+def load_alerts_in_ua(archive_dirs: list[Path]) -> tuple[pd.DataFrame, pd.Timestamp, pd.Timestamp]:
     """Об'єднує знімки history_*.json. Повертає події та межі гарантованого покриття [start, end).
 
     Покриття = найпізніший (fetch_time - 30 діб) серед усіх файлів найранішого знімку, щоб не
     вважати "тихими" години, які просто не потрапили у вікно month_ago. Час запиту береться з
     поля _fetched_at (пишеться з 2026-10-15), для старіших файлів — з mtime файлу.
     """
-    recs, coverage_by_snapshot, fetch_times = [], [], []
-    for d in sorted(snapshot_dirs):
+    recs, coverage_by_archive, fetch_times = [], [], []
+    for d in sorted(archive_dirs):
         file_cov, fetch_times = [], []
         for f in sorted(d.glob("history_*.json")):
             payload = json.loads(f.read_text())
@@ -168,9 +168,9 @@ def load_alerts_in_ua(snapshot_dirs: list[Path]) -> tuple[pd.DataFrame, pd.Times
             fetch_times.append(fetched)
             for a in payload.get("alerts", []):
                 recs.append({**a, "_fetched_at": fetched})
-        coverage_by_snapshot.append(max(file_cov))
+        coverage_by_archive.append(max(file_cov))
     # Знімки мають бути не рідше ніж раз на 30 діб, інакше між ними діра.
-    coverage_start = min(coverage_by_snapshot)
+    coverage_start = min(coverage_by_archive)
     # Кінець = найраніший запит останнього знімку (після нього стан частини областей невідомий).
     coverage_end = min(fetch_times)  # fetch_times тут — файли останнього знімку
     return normalize_alerts_in_ua(pd.DataFrame(recs)), coverage_start, coverage_end
@@ -342,7 +342,7 @@ def build_processed(vadimkin_csv: Path | None = None) -> dict:
             for r in events[events.suspect_end].itertuples()
         ],
         "units": sorted(events.unit.unique()),
-        "inputs": {"vadimkin": vadimkin_csv.name, "alerts_in_ua_snapshots": [s.name for s in snaps]},
+        "inputs": {"vadimkin": vadimkin_csv.name, "alerts_in_ua_archives": [s.name for s in snaps]},
         "cleaning_report": {"vadimkin": rep_v, "alerts_in_ua": rep_a},
     }
     (PROCESSED_DIR / "coverage.json").write_text(json.dumps(coverage, ensure_ascii=False, indent=1, default=str))

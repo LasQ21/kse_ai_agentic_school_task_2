@@ -126,8 +126,8 @@ class Forecaster:
         out["model"] = np.where(west, "climate", "gbm")
         return out
 
-    def snapshot(self, now) -> dict:
-        """Прогноз для всіх одиниць + стан даних (для API: GET /forecast)."""
+    def forecast_all(self, now) -> dict:
+        """Прогноз для всіх одиниць + стан даних (as_of, вік, stale)."""
         as_of, last, age, stale = self.status(now)
         return {"requested_for": _utc(now), "as_of": as_of, "data_last_update": last,
                 "data_age_s": age, "stale": stale, "table": self.predict_all(as_of)}

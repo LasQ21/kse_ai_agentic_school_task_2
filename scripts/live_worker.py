@@ -38,7 +38,7 @@ def env(name, default):
     return type(default)(os.environ.get(name, default))
 
 
-def last_snapshot_time():
+def last_archive_time():
     """Час останнього знімка історії в data/raw/alerts_in_ua (за назвою теки)."""
     d = RAW_DIR / "alerts_in_ua"
     snaps = sorted(p.name for p in d.iterdir() if p.is_dir()) if d.exists() else []
@@ -53,12 +53,12 @@ class Worker:
         self.stop = threading.Event()
         self.archive_thread = None
         self.status = {"started_at": datetime.now(timezone.utc).isoformat(), "source": self.source.name,
-                       "last_poll": None, "last_archive": str(last_snapshot_time()), "archive_running": False,
+                       "last_poll": None, "last_archive": str(last_archive_time()), "archive_running": False,
                        "errors": []}
 
     def save_status(self):
         # знімок міг зробити й інший процес (run_pipeline / archive_alerts) — беремо з диска
-        self.status["last_archive"] = str(last_snapshot_time())
+        self.status["last_archive"] = str(last_archive_time())
         STATUS.parent.mkdir(parents=True, exist_ok=True)
         STATUS.write_text(json.dumps(self.status, ensure_ascii=False, indent=1, default=str))
 
@@ -68,7 +68,7 @@ class Worker:
             snap = archive_alerts_in_ua_history()
             self.store.import_archive([snap])
             self.status["last_archive"] = snap.name
-            log.info("archive snapshot %s imported", snap.name)
+            log.info("archive %s imported", snap.name)
         except Exception as e:  # мережа / ліміт — спробуємо в наступному циклі
             self.status["errors"] = (self.status["errors"] + [f"archive: {e!r}"])[-20:]
             log.exception("archive failed")
@@ -76,7 +76,7 @@ class Worker:
             self.status["archive_running"] = False
 
     def maybe_archive(self):
-        last = last_snapshot_time()
+        last = last_archive_time()
         due = last is None or pd.Timestamp.now(tz="UTC") - last >= self.archive_every
         if due and not (self.archive_thread and self.archive_thread.is_alive()):
             self.archive_thread = threading.Thread(target=self._archive, daemon=True)

@@ -154,9 +154,9 @@ class LiveStore:
         with self._conn() as c:
             c.execute("INSERT INTO polls VALUES (?,?,?,?,?,?)", (_now(), source, kind, 0, 0, err[:500]))
 
-    def import_archive(self, snapshot_dirs: list[Path] | None = None):
+    def import_archive(self, archive_dirs: list[Path] | None = None):
         """Знімки data/raw/alerts_in_ua/* -> сховище (стартова історія для 168-годинних ознак)."""
-        dirs = snapshot_dirs or sorted(p for p in (RAW_DIR / "alerts_in_ua").iterdir() if p.is_dir())
+        dirs = archive_dirs or sorted(p for p in (RAW_DIR / "alerts_in_ua").iterdir() if p.is_dir())
         for d in dirs:
             for f in sorted(d.glob("history_*.json")):
                 payload = json.loads(f.read_text())
