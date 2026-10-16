@@ -17,8 +17,12 @@ import pandas as pd
 
 from src.data import KYIV_CITY, OBLAST_AS_UNIT, clean_events, hromada_events, load_vadimkin
 from src.features import WESTERN_OBLASTS, add_derived, compute_features
-from src.models import Calibrator, Climate, gbm_features, make_gbm
+from src.features import FEATURES_LOGREG
+from src.models import Calibrator, Climate, ClimateWave, gbm_features, make_gbm, make_logreg
 from src.split import HORIZONS, SPLITS, assign_split, build_label_grid
+from src.state_features import add_state_features
+from src.state_models import gbm_q_features, make_gbm_q
+from src.state_targets import STATE_HORIZONS, build_state_labels
 
 UNITS = json.loads((Path(__file__).parent / "fixtures" / "units.json").read_text())
 # Сегмент: 7 діб розігріву, train 25.05–13.06, val 15.06–30.06 (межі SPLITS["V"]).
@@ -46,15 +50,17 @@ def raw_events(seed: int = 0) -> pd.DataFrame:
             o, r = u.split("|")
             if rng.random() < rate[o] * (6 if wave else 1):
                 start = t + pd.Timedelta(seconds=int(rng.integers(0, 3600)))
-                minutes = int(rng.integers(10, 180))
-                if o == KYIV_CITY:
-                    add(o, None, None, "oblast", start, minutes)
-                elif o in OBLAST_AS_UNIT:
-                    add(o, None, None, "oblast", start, minutes)
-                elif rng.random() < 0.1:
-                    add(o, r, f"громада {r}", "hromada", start, minutes)
-                else:
-                    add(o, r, None, "raion", start, minutes)
+                # 15%: дві короткі тривоги одна за одною (перерва 3 хв), щоб лічильник 2+ мав приклади
+                pair = rng.random() < 0.15
+                minutes = int(rng.integers(5, 15)) if pair else int(rng.integers(10, 180))
+                starts = [start, start + pd.Timedelta(minutes=minutes + 3)] if pair else [start]
+                for s0 in starts:
+                    if o in OBLAST_AS_UNIT | {KYIV_CITY}:
+                        add(o, None, None, "oblast", s0, minutes)
+                    elif rng.random() < 0.1:
+                        add(o, r, f"громада {r}", "hromada", s0, minutes)
+                    else:
+                        add(o, r, None, "raion", s0, minutes)
     # Кожен район має хоч одну районну подію: офлайн перелік районів для обласних тривог береться
     # з даних, а сервіс — з переліку одиниць; так вони збігаються.
     for u in UNITS:
@@ -105,4 +111,35 @@ def build(root: Path, seed: int = 0) -> dict:
     model = root / "models" / "service_model.joblib"
     model.parent.mkdir(exist_ok=True)
     joblib.dump({"models": models, "meta": meta}, model)
-    return {"raw_csv": raw_csv, "dataset": dataset, "service_model": model}
+    dataset_state, state_model = build_state(root, ev, coverage, D)
+    return {"raw_csv": raw_csv, "dataset": dataset, "service_model": model,
+            "dataset_state": dataset_state, "state_model": state_model}
+
+
+def build_state(root: Path, ev: pd.DataFrame, coverage: dict, D: pd.DataFrame):
+    """Цілі для бота на зразку тим самим шляхом (src.state_targets / src.state_features) і
+    невелика модель тієї ж структури, що й scripts/train_state.py (GBM, Platt)."""
+    L, _ = build_state_labels(ev, coverage)
+    X = L.merge(D.drop(columns=["segment", "split_V"]), on=["unit", "t"], how="left", validate="1:1")
+    X = add_state_features(X, ev)
+    path = root / "processed" / "dataset_state.parquet"
+    X.to_parquet(path, index=False)
+    K = X[X.keep]
+    tr, va = K[K.split_S == "train"], K[K.split_S == "val"]
+
+    def fam(tr, va, y_tr, y_va, feats_gbm, make_gbm_fn):
+        g = make_gbm_fn(**GBM_PARAMS).fit(tr[feats_gbm], y_tr)
+        return {"gbm": g, "gbm_features": feats_gbm, "logreg": make_logreg(1.0).fit(tr[FEATURES_LOGREG], y_tr),
+                "logreg_features": FEATURES_LOGREG, "climate": Climate().fit(tr, y_tr),
+                "cal": Calibrator("platt").fit(g.predict_proba(va[feats_gbm])[:, 1], y_va)}
+
+    any24 = fam(tr, va, tr.y_new_24, va.y_new_24, gbm_features(True), make_gbm)
+    any24["climate_wave"] = ClimateWave(any24["climate"]).fit(tr, tr.y_new_24)
+    q = {}
+    for h in STATE_HORIZONS:
+        a, b = tr[tr[f"n_new_{h}"] >= 1], va[va[f"n_new_{h}"] >= 1]
+        q[h] = fam(a, b, (a[f"n_new_{h}"] >= 2).astype(int), (b[f"n_new_{h}"] >= 2).astype(int),
+                   gbm_q_features(True), make_gbm_q)
+    model = root / "models" / "state_models.joblib"
+    joblib.dump({"any24": any24, "q": q, "family_any24": "gbm", "family_q": "gbm", "meta": {"sample": True}}, model)
+    return path, model

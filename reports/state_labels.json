@@ -1,0 +1,49 @@
+{
+ "tail_rows_dropped": 3780,
+ "rows_in_grid": 772800,
+ "dropped_by_reason": {
+  "suspect_window": 292
+ },
+ "dropped_by_reason_and_state": {
+  "suspect_window|A": 44,
+  "suspect_window|B": 248
+ },
+ "embargo": {
+  "train->val": {
+   "last_t": "2026-06-10 23:00:00+00:00",
+   "next_first_t": "2026-06-15 00:00:00+00:00",
+   "gap_h": 97.0,
+   "label_window_end": "2026-06-11 23:00:00+00:00",
+   "label_window_inside_next": false,
+   "max_kept_episode_h": 96.0,
+   "episode_could_span": false,
+   "max_elapsed_h_in_part_B_rows": 63.69
+  },
+  "val->test": {
+   "last_t": "2026-07-27 23:00:00+00:00",
+   "next_first_t": "2026-08-01 00:00:00+00:00",
+   "gap_h": 97.0,
+   "label_window_end": "2026-07-28 23:00:00+00:00",
+   "label_window_inside_next": false,
+   "max_kept_episode_h": 96.0,
+   "episode_could_span": false,
+   "max_elapsed_h_in_part_B_rows": 39.10722222222222
+  }
+ },
+ "rows_by_split_state": {
+  "external|A": 42944,
+  "external|B": 14071,
+  "test|A": 56770,
+  "test|B": 11375,
+  "train|A": 442936,
+  "train|B": 75892,
+  "val|A": 90850,
+  "val|B": 17510
+ },
+ "episodes_by_split": {
+  "external": 7043,
+  "test": 5616,
+  "train": 32445,
+  "val": 8596
+ }
+}

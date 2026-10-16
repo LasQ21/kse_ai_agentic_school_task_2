@@ -1,6 +1,6 @@
 # Прогін пайплайна 2026-10-16 05:41 UTC
 
-Згенеровано `scripts/run_pipeline.py`. **Test не оцінювався** (заморожено після двох оцінок; див. `model_report.md`).
+Згенеровано `scripts/run_pipeline.py`. **Цей прогін test не оцінював** (старі цілі оцінено двічі, нові — один раз окремо; див. `model_report.md`).
 
 ## Вхідні дані
 - Vadimkin: `official_data_uk_20261016.csv`
