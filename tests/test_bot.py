@@ -188,3 +188,31 @@ def test_build_application_offline():
     app = build_application(FAKE_TOKEN, make_bot())
     names = {c for h in app.handlers[0] for c in getattr(h, "commands", ())}
     assert {"start", "help", "about", "status", "top", "region"} <= names
+
+
+def test_alphabetical_order_ukrainian():
+    """Сортування за українським алфавітом: і/ї/є/ґ стоять на своїх місцях, «м. Київ» — на К."""
+    from src.bot import uk_key
+    oblasts = ["Івано-Франківська область", "Волинська область", "Вінницька область", "Київська область",
+               "м. Київ", "Кіровоградська область", "Харківська область", "Хмельницька область",
+               "Чернівецька область", "Чернігівська область", "Черкаська область"]
+    got = sorted(oblasts, key=uk_key)
+    assert got == ["Вінницька область", "Волинська область", "Івано-Франківська область",
+                   "м. Київ", "Київська область", "Кіровоградська область", "Харківська область",
+                   "Хмельницька область", "Черкаська область", "Чернівецька область",
+                   "Чернігівська область"]
+    raions = ["Бучанський район", "Білоцерківський район", "Бориспільський район", "Броварський район"]
+    assert sorted(raions, key=uk_key) == ["Білоцерківський район", "Бориспільський район",
+                                          "Броварський район", "Бучанський район"]
+
+
+def test_region_keyboards_are_alphabetical():
+    bot = make_bot()
+    u, m = update()
+    run(bot.region(u, None))
+    names = [b.text for row in m.replies[0][1].inline_keyboard for b in row]
+    from src.bot import uk_key
+    assert names == sorted(names, key=uk_key) and names.index("Львівська") < names.index("Харківська")
+    fs, _ = bot.cache.get()
+    kb = bot.raion_keyboard(fs, "Харківська область").inline_keyboard
+    assert [b.text for row in kb for b in row] == ["Ізюмський район", "Харківський район"]

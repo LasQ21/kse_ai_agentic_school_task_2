@@ -112,6 +112,23 @@ def fmt_age(seconds: float | None) -> str:
     return f"{fmt_duration(seconds / 3600)} тому"
 
 
+UK_ALPHABET = "абвгґдеєжзиіїйклмнопрстуфхцчшщьюя"
+UK_RANK = {c: i + 1 for i, c in enumerate(UK_ALPHABET)}
+
+
+def uk_key(label: str) -> tuple:
+    """Ключ українського алфавітного порядку (а б в г ґ д е є ж з и і ї й …).
+
+    Сортування за кодами Юнікоду ставить і/ї/є/ґ після «я», тому «Івано-Франківська» опиняється
+    першою, а «Білоцерківський» — після «Бучанський». Префікс «м. » ігнорується («м. Київ» — на К);
+    не-літери (дефіс, пробіл, апостроф) йдуть перед літерами.
+    """
+    t = label.lower().replace("’", "'")
+    if t.startswith("м. "):
+        t = t[3:]
+    return tuple(UK_RANK.get(c, 0) for c in t) + (len(t),), t
+
+
 def region_title(unit: str) -> str:
     o, r = unit.split("|", 1)
     return o if r == "*" else f"{o}, {r}"
@@ -289,7 +306,7 @@ class Bot:
         await self._reply(update, format_top(list(fs.values()), st))
 
     def _oblasts(self, fs: dict) -> list[str]:
-        return sorted({u.split("|")[0] for u in fs} | set(EXCLUDED_OBLASTS))
+        return sorted({u.split("|")[0] for u in fs} | set(EXCLUDED_OBLASTS), key=uk_key)
 
     def oblast_keyboard(self, fs: dict):
         from telegram import InlineKeyboardButton, InlineKeyboardMarkup
@@ -300,7 +317,7 @@ class Bot:
 
     def raion_keyboard(self, fs: dict, oblast: str):
         from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-        units = sorted(u for u in fs if u.startswith(oblast + "|"))
+        units = sorted((u for u in fs if u.startswith(oblast + "|")), key=lambda u: uk_key(u.split("|")[1]))
         idx = {u: i for i, u in enumerate(sorted(fs))}
         btn = [InlineKeyboardButton(u.split("|")[1], callback_data=f"u:{idx[u]}") for u in units]
         return InlineKeyboardMarkup([btn[j:j + 2] for j in range(0, len(btn), 2)])
@@ -355,7 +372,7 @@ class Bot:
                 await self._reply(update, f"{o}: без прогнозу — {EXCLUDED_REASON.get(o, 'виключено')}.")
                 return
         fs, _ = await self._forecasts()
-        hits = [u for u in sorted(fs) if query in u.lower()]
+        hits = sorted((u for u in fs if query in u.lower()), key=lambda u: uk_key(region_title(u)))
         if len(hits) == 1:
             await self._reply(update, format_forecast(fs[hits[0]]))
         elif not hits:
