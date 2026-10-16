@@ -4,8 +4,8 @@
   python scripts/run_pipeline.py --refresh  # спершу свіжий Vadimkin і знімок історії alerts.in.ua (~14 хв)
 
 Розбиття (src.split.SPLITS["V"]) і правило «захід — клімат, решта — GBM» (src.models.service_predict)
-зафіксовані в коді. TEST НЕ ОЦІНЮЄТЬСЯ: test уже оцінено двічі й заморожено. Фінальний крок для
-test запускається лише вручну:
+зафіксовані в коді. TEST НЕ ОЦІНЮЄТЬСЯ: test старих цілей оцінено двічі, нових — один раз (ea6b738), обидва
+заморожено. Команди нижче лишено для відтворення, повторно їх не запускати:
   python scripts/evaluate_final.py --part test --allow-test   # старі цілі 1/3/6
   python scripts/evaluate_state.py --part test --allow-test   # цілі бота (24 год, лічильник)
 Підсумок прогону: reports/pipeline_run.md.
@@ -137,8 +137,8 @@ def write_summary(timings):
         return float(x[col].iloc[0]) if len(x) else float("nan")
 
     lines = [f"# Прогін пайплайна {datetime.now(timezone.utc):%Y-%m-%d %H:%M} UTC", "",
-             "Згенеровано `scripts/run_pipeline.py`. **Test не оцінювався** (заморожено після двох оцінок; "
-             "див. `model_report.md`).", "",
+             "Згенеровано `scripts/run_pipeline.py`. **Цей прогін test не оцінював** (старі цілі оцінено "
+             "двічі, нові — один раз окремо; див. `model_report.md`).", "",
              "## Вхідні дані", f"- Vadimkin: `{cov['inputs']['vadimkin']}`",
              f"- знімки alerts.in.ua: {', '.join(cov['inputs']['alerts_in_ua_archives'])}",
              *[f"- сегмент `{s['source']}`: {s['start']} → {s['end']}" for s in cov["segments"]],
@@ -183,8 +183,7 @@ def main():
         fn(args)
         timings.append((name, time.time() - t0))
     write_summary(timings)
-    print("\nготово: reports/pipeline_run.md. Test не оцінювався; вручну: "
-          "python scripts/evaluate_final.py --part test --allow-test")
+    print("\nготово: reports/pipeline_run.md. Цей прогін test не оцінював (повторно його не запускати).")
 
 
 if __name__ == "__main__":

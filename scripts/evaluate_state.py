@@ -5,8 +5,8 @@
   python scripts/evaluate_state.py --part test --allow-test   # лише з явної команди замовника
 
 Цілі: P(≥1 нової тривоги) за 1 / 3 / 6 / 24 год (1–6 — стара модель без змін) і лічильник
-P(0) / P(1) / P(2+). Test для нових цілей — той самий період, що test старих цілей (його бачили
-двічі для y_1/3/6). Вихід: reports/state_metrics.csv, reports/state_counter_metrics.csv (рядки
+P(0) / P(1) / P(2+). Test для нових цілей оцінено один раз (ea6b738) — той самий період, що test старих цілей
+(його бачили двічі для y_1/3/6). Вихід: reports/state_metrics.csv, reports/state_counter_metrics.csv (рядки
 частини замінюються), reports/state_bootstrap_<part>.json, reports/state_reliability_<part>.csv.
 """
 import argparse
