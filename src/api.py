@@ -9,11 +9,13 @@ from __future__ import annotations
 
 import json
 import math
+import os
 import threading
 import time
 
 import pandas as pd
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 
 from src.data import EXCLUDED_OBLASTS, ROOT
 from src.features import WESTERN_OBLASTS
@@ -54,6 +56,10 @@ def _item(r) -> dict:
 
 def create_app(forecaster: Forecaster | None = None) -> FastAPI:
     app = FastAPI(title="Прогноз повітряних тривог", description=DISCLAIMER)
+    # Сайт (Vercel) живе на іншому домені. Дані публічні й лише для читання: GET без credentials.
+    origins = [o.strip() for o in os.environ.get("CORS_ALLOW_ORIGINS", "*").split(",") if o.strip()]
+    app.add_middleware(CORSMiddleware, allow_origins=origins, allow_methods=["GET"],
+                       allow_credentials=False, allow_headers=[])
     state = {"fc": forecaster, "cache": None, "lock": threading.Lock()}
 
     def fc() -> Forecaster:

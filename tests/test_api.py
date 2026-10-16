@@ -75,3 +75,10 @@ def test_quality_has_test_and_external_separately(tmp_path):
     q = c.get("/quality").json()
     assert {"test", "external"} <= set(q)
     assert {(x["group"], x["model"]) for x in q["test"]} == {("western", "climate"), ("non_western", "gbm")}
+
+
+def test_cors_allows_site_get(tmp_path):
+    c, _ = make_client(tmp_path, pd.Timedelta(seconds=5))
+    r = c.get("/health", headers={"Origin": "https://example.vercel.app"})
+    assert r.headers.get("access-control-allow-origin") in ("*", "https://example.vercel.app")
+    assert "access-control-allow-credentials" not in r.headers
