@@ -10,7 +10,7 @@ sys.path.insert(0, str(ROOT))
 from src.data import PROCESSED_DIR  # noqa: E402
 from src.evaluate import metrics  # noqa: E402
 from src.features import FEATURES_LOGREG, WESTERN_OBLASTS  # noqa: E402
-from src.models import Climate, gbm_features, make_gbm, make_logreg  # noqa: E402
+from src.models import Climate, ClimateWave, gbm_features, make_gbm, make_logreg  # noqa: E402
 from src.split import HORIZONS, SPLITS, backtest_folds  # noqa: E402
 
 if __name__ == "__main__":
@@ -25,8 +25,10 @@ if __name__ == "__main__":
             y_tr, y_ev = tr[f"y_{h}"], ev[f"y_{h}"].to_numpy()
             params = sel[str(h)]["gbm"]["chosen"]
             feats = gbm_features(params.get("use_unit", True))
+            clim = Climate().fit(tr, y_tr)
             preds = {
-                "climate": Climate().fit(tr, y_tr).predict(ev),
+                "climate": clim.predict(ev),
+                "climate_wave": ClimateWave(clim).fit(tr, y_tr).predict(ev),
                 "logreg": make_logreg(sel[str(h)]["logreg"]["chosen_C"]).fit(tr[FEATURES_LOGREG], y_tr)
                 .predict_proba(ev[FEATURES_LOGREG])[:, 1],
                 "gbm_raw": make_gbm(**params).fit(tr[feats], y_tr).predict_proba(ev[feats])[:, 1],

@@ -54,6 +54,31 @@ class Persistence:
         return np.where(x, self.rate[True], self.rate[False])
 
 
+# Ознаки «хвилі атаки» для бази «клімат + хвиля»: скільки областей мали тривогу за останню годину
+# і скільки одиниць під тривогою по країні в момент t (без власної одиниці).
+WAVE_FEATURES = ["oblasts_touched_1h", "country_active_other"]
+
+
+class ClimateWave:
+    """База «клімат + хвиля»: логістична регресія на logit(клімат) і WAVE_FEATURES, без інших ознак.
+
+    C=1 фіксоване (без тюнінгу); клімат береться вже навчений на train.
+    """
+
+    def __init__(self, climate: "Climate"):
+        self.climate = climate
+
+    def _x(self, df):
+        return np.column_stack([_logit(self.climate.predict(df)), df[WAVE_FEATURES].to_numpy(float)])
+
+    def fit(self, df, y):
+        self.m = make_pipeline(StandardScaler(), LogisticRegression(C=1.0, max_iter=2000)).fit(self._x(df), y)
+        return self
+
+    def predict(self, df):
+        return self.m.predict_proba(self._x(df))[:, 1]
+
+
 def make_logreg(C):
     return make_pipeline(StandardScaler(), LogisticRegression(C=C, max_iter=2000))
 

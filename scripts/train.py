@@ -21,7 +21,7 @@ from src.data import PROCESSED_DIR  # noqa: E402
 from src.evaluate import grouped_metrics, metrics  # noqa: E402
 from src.features import FEATURES_GBM, FEATURES_LOGREG  # noqa: E402
 from src.features import WESTERN_OBLASTS  # noqa: E402
-from src.models import (GBM_GRID, LOGREG_C, Calibrator, Climate, Persistence,  # noqa: E402
+from src.models import (GBM_GRID, LOGREG_C, Calibrator, Climate, ClimateWave, Persistence,  # noqa: E402
                         choose_calibration, enforce_monotone, gbm_features, make_gbm, make_logreg)
 from src.split import HORIZONS  # noqa: E402
 
@@ -49,6 +49,7 @@ def main():
         clim = Climate().fit(tr, y_tr)
         pers = Persistence(h).fit(tr, y_tr)
         p_clim = clim.predict(va)
+        clim_wave = ClimateWave(clim).fit(tr, y_tr)
         # Клімат + калібрування на val: чесніший бейзлайн, бо частота тривог росте з часом.
         m_cc, sc_cc = choose_calibration(p_clim, y_va, va.t.to_numpy())
         cal_clim = Calibrator(m_cc).fit(p_clim, y_va)
@@ -85,9 +86,11 @@ def main():
         sel["gbm"] = {"grid": gbm_scores, "chosen": GBM_GRID[best], "features": gbm_feats,
                       "calibration": {"chosen": m_cal, "val_logloss_crossfit": sc_cal}}
         selection[h] = sel
-        frozen[h] = {"climate": clim, "climate_cal": cal_clim, "persistence": pers, "logreg": lr,
+        frozen[h] = {"climate": clim, "climate_cal": cal_clim, "climate_wave": clim_wave,
+                     "persistence": pers, "logreg": lr,
                      "gbm": gbm, "gbm_features": gbm_feats, "gbm_cal": cal}
         val_preds[h] = {"climate": p_clim, "climate_cal_in_sample": cal_clim.predict(p_clim),
+                        "climate_wave": clim_wave.predict(va),
                         "persistence": pers.predict(va),
                         "logreg": lr.predict_proba(va[FEATURES_LOGREG])[:, 1],
                         "gbm_raw": p_gbm_raw, "gbm_cal_in_sample": cal.predict(p_gbm_raw)}
