@@ -5,5 +5,8 @@
       "maxDuration": 60,
       "excludeFiles": "{tests/**,reports/**,docs/**,site/**,public/**,data/**,scripts/**,.venv/**}"
     }
+  },
+  "git": {
+    "deploymentEnabled": false
   }
 }
